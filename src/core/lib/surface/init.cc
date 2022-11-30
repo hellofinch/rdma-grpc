@@ -191,6 +191,8 @@ void grpc_init(void) {
     }
     grpc_tracer_init();
     grpc_iomgr_start();
+    
+    // GRPC_API_TRACE("src/core/lib/surface/init.cc:grpc_init():grpc_iomgr_start %d", 1, (g_initializations));
   }
 
   GRPC_API_TRACE("grpc_init(void)", 0, ());

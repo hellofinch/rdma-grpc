@@ -47,6 +47,8 @@ struct grpc_slice_refcount {
       destroyer_fn_(this);
     }
   }
+  void (*ref)(void *);
+  void (*unref)(void *);
 
   // Is this the only instance?
   // For this to be useful the caller needs to ensure that if this is the only

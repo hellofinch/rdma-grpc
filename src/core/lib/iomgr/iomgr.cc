@@ -40,6 +40,7 @@
 #include "src/core/lib/iomgr/iomgr_internal.h"
 #include "src/core/lib/iomgr/timer.h"
 #include "src/core/lib/iomgr/timer_manager.h"
+#include "src/core/lib/surface/api_trace.h"
 
 GPR_GLOBAL_CONFIG_DEFINE_BOOL(grpc_abort_on_leaks, false,
                               "A debugging aid to cause a call to abort() when "
@@ -52,23 +53,30 @@ static grpc_iomgr_object g_root_object;
 static bool g_grpc_abort_on_leaks;
 
 void grpc_iomgr_init() {
+  // std::cout << "src/core/lib/iomgr/iomgr.cc:grpc_iomgr_init()" << std::endl;
   grpc_core::ExecCtx exec_ctx;
   if (!grpc_have_determined_iomgr_platform()) {
     grpc_set_default_iomgr_platform();
+    // std::cout << "src/core/lib/iomgr/iomgr.cc:grpc_iomgr_init:grpc_set_default_iomgr_platform"<<std::endl;
   }
   g_shutdown = 0;
   gpr_mu_init(&g_mu);
   gpr_cv_init(&g_rcv);
   grpc_core::Executor::InitAll();
+  // std::cout << "src/core/lib/iomgr/iomgr.cc:grpc_iomgr_init():InitAll" << std::endl;
   g_root_object.next = g_root_object.prev = &g_root_object;
   g_root_object.name = const_cast<char*>("root");
   grpc_iomgr_platform_init();
+  // std::cout << "src/core/lib/iomgr/iomgr.cc:grpc_iomgr_init():grpc_iomgr_platform_init"<< std::endl;
   grpc_timer_list_init();
   grpc_core::grpc_errqueue_init();
   g_grpc_abort_on_leaks = GPR_GLOBAL_CONFIG_GET(grpc_abort_on_leaks);
 }
 
-void grpc_iomgr_start() { grpc_timer_manager_init(); }
+void grpc_iomgr_start() { 
+  // std::cout << "src/core/lib/iomgr/iomgr.cc:grpc_iomgr_start" << std::endl;
+  grpc_timer_manager_init(); 
+  }
 
 static size_t count_objects(void) {
   grpc_iomgr_object* obj;
@@ -89,6 +97,8 @@ static void dump_objects(const char* kind) {
 }
 
 void grpc_iomgr_shutdown() {
+  GRPC_API_TRACE("src/core/lib/iomgr/iomgr.cc:grpc_iomgr_shutdown() start",0, ());
+  std::cout << "src/core/lib/iomgr/iomgr.cc:grpc_iomgr_shutdown() start" << std::endl;
   gpr_timespec shutdown_deadline = gpr_time_add(
       gpr_now(GPR_CLOCK_REALTIME), gpr_time_from_seconds(10, GPR_TIMESPAN));
   gpr_timespec last_warning_time = gpr_now(GPR_CLOCK_REALTIME);

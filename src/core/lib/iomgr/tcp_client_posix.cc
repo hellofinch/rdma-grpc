@@ -165,6 +165,7 @@ static void on_writable(void* acp, grpc_error_handle error) {
     err = getsockopt(grpc_fd_wrapped_fd(fd), SOL_SOCKET, SO_ERROR, &so_error,
                      &so_error_size);
   } while (err < 0 && errno == EINTR);
+  
   if (err < 0) {
     error = GRPC_OS_ERROR(errno, "getsockopt");
     goto finish;
@@ -276,8 +277,8 @@ void grpc_tcp_client_create_from_prepared_fd(
     err = connect(fd, reinterpret_cast<const grpc_sockaddr*>(addr->addr),
                   addr->len);
   } while (err < 0 && errno == EINTR);
-
   std::string name = absl::StrCat("tcp-client:", grpc_sockaddr_to_uri(addr));
+  gpr_log(GPR_INFO, "src/core/lib/iomgr/tcp_client_posix.cc:grpc_tcp_client_create_from_prepared_fd  %s",name.c_str());
   grpc_fd* fdobj = grpc_fd_create(fd, name.c_str(), true);
 
   if (err >= 0) {
@@ -295,6 +296,7 @@ void grpc_tcp_client_create_from_prepared_fd(
     return;
   }
 
+  gpr_log(GPR_INFO, "src/core/lib/iomgr/tcp_client_posix.cc:grpc_tcp_client_create_from_prepared_fd  no return after err if");
   grpc_pollset_set_add_fd(interested_parties, fdobj);
 
   async_connect* ac = new async_connect();
@@ -330,14 +332,15 @@ static void tcp_connect(grpc_closure* closure, grpc_endpoint** ep,
   int fd = -1;
   grpc_error_handle error;
   *ep = nullptr;
-  if ((error = grpc_tcp_client_prepare_fd(channel_args, addr, &mapped_addr,
-                                          &fd)) != GRPC_ERROR_NONE) {
+  if ((error = grpc_tcp_client_prepare_fd(channel_args, addr, &mapped_addr,&fd)) != GRPC_ERROR_NONE) {
     grpc_core::ExecCtx::Run(DEBUG_LOCATION, closure, error);
     return;
   }
+
   grpc_tcp_client_create_from_prepared_fd(interested_parties, closure, fd,
                                           channel_args, &mapped_addr, deadline,
                                           ep);
+  gpr_log(GPR_INFO, "src/core/lib/iomgr/tcp_client_posix.cc:tcp_connect:grpc_tcp_client_create_from_prepared_fd");
 }
 
 grpc_tcp_client_vtable grpc_posix_tcp_client_vtable = {tcp_connect};

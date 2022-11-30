@@ -32,8 +32,7 @@
 #include "src/core/lib/iomgr/closure.h"
 #include "src/core/lib/iomgr/endpoint.h"
 #include "src/core/lib/iomgr/exec_ctx.h"
-// #include "src/core/lib/iomgr/tcp_server.h"
-#include "src/core/lib/iomgr/ib_server.h"
+#include "src/core/lib/iomgr/tcp_server.h"
 #include "src/core/lib/iomgr/timer.h"
 
 namespace grpc_core {
@@ -79,7 +78,7 @@ class Handshaker : public RefCounted<Handshaker> {
  public:
   ~Handshaker() override = default;
   virtual void Shutdown(grpc_error_handle why) = 0;
-  virtual void DoHandshake(grpc_rdma_server_acceptor* acceptor,
+  virtual void DoHandshake(grpc_tcp_server_acceptor* acceptor,
                            grpc_closure* on_handshake_done,
                            HandshakerArgs* args) = 0;
   virtual const char* name() const = 0;
@@ -116,7 +115,7 @@ class HandshakeManager : public RefCounted<HandshakeManager> {
   /// the arguments.
   void DoHandshake(grpc_endpoint* endpoint,
                    const grpc_channel_args* channel_args, Timestamp deadline,
-                   grpc_rdma_server_acceptor* acceptor,
+                   grpc_tcp_server_acceptor* acceptor,
                    grpc_iomgr_cb_func on_handshake_done, void* user_data);
 
  private:
@@ -140,7 +139,7 @@ class HandshakeManager : public RefCounted<HandshakeManager> {
   size_t index_ = 0;
   grpc_closure call_next_handshaker_;
   // The acceptor to call the handshakers with.
-  grpc_rdma_server_acceptor* acceptor_;
+  grpc_tcp_server_acceptor* acceptor_;
   // Deadline timer across all handshakers.
   grpc_timer deadline_timer_;
   grpc_closure on_timeout_;

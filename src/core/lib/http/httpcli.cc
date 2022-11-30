@@ -42,7 +42,8 @@
 #include "src/core/lib/iomgr/endpoint.h"
 #include "src/core/lib/iomgr/iomgr_internal.h"
 #include "src/core/lib/iomgr/resolve_address.h"
-#include "src/core/lib/iomgr/tcp_client.h"
+// #include "src/core/lib/iomgr/tcp_client.h"
+#include "src/core/lib/iomgr/ib_client.h"
 #include "src/core/lib/resource_quota/api.h"
 #include "src/core/lib/slice/slice_internal.h"
 #include "src/core/lib/transport/error_utils.h"
@@ -370,8 +371,10 @@ void HttpRequest::NextAddress(grpc_error_handle error) {
   connecting_ = true;
   own_endpoint_ = false;
   Ref().release();  // ref held by pending connect
-  grpc_tcp_client_connect(&connected_, &ep_, pollset_set_, channel_args_, addr,
+  grpc_rdma_client_connect(&connected_, &ep_, pollset_set_, channel_args_, addr,
                           deadline_);
+  // grpc_tcp_client_connect(&connected_, &ep_, pollset_set_, channel_args_, addr,
+  //                         deadline_);
 }
 
 void HttpRequest::OnResolved(

@@ -589,6 +589,10 @@ void Server::Start() {
                                    pollset);
     }
   }
+  
+  GRPC_API_TRACE(
+      "src/core/lib/surface/server.cc:Start(), before listener.listener->Start",
+      0, ());
   for (auto& listener : listeners_) {
     listener.listener->Start(this, &pollsets_);
   }

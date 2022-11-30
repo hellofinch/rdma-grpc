@@ -918,6 +918,7 @@ Server::Server(
       max_receive_message_size_ = channel_args.args[i].value.integer;
     }
   }
+  // std::cout << "src/cpp/server/server_cc.cc:Server" << std::endl;
   server_ = grpc_server_create(&channel_args, nullptr);
   grpc_server_set_config_fetcher(server_, server_config_fetcher);
 }

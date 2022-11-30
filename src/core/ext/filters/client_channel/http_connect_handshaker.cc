@@ -50,7 +50,8 @@ class HttpConnectHandshaker : public Handshaker {
  public:
   HttpConnectHandshaker();
   void Shutdown(grpc_error_handle why) override;
-  void DoHandshake(grpc_tcp_server_acceptor* acceptor,
+  // void DoHandshake(grpc_tcp_server_acceptor* acceptor,
+  void DoHandshake(grpc_rdma_server_acceptor* acceptor,
                    grpc_closure* on_handshake_done,
                    HandshakerArgs* args) override;
   const char* name() const override { return "http_connect"; }
@@ -278,7 +279,8 @@ void HttpConnectHandshaker::Shutdown(grpc_error_handle why) {
   GRPC_ERROR_UNREF(why);
 }
 
-void HttpConnectHandshaker::DoHandshake(grpc_tcp_server_acceptor* /*acceptor*/,
+// void HttpConnectHandshaker::DoHandshake(grpc_tcp_server_acceptor* /*acceptor*/,
+void HttpConnectHandshaker::DoHandshake(grpc_rdma_server_acceptor* /*acceptor*/,
                                         grpc_closure* on_handshake_done,
                                         HandshakerArgs* args) {
   // Check for HTTP CONNECT channel arg.

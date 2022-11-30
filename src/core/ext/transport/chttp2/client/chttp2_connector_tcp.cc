@@ -34,7 +34,6 @@
 #include "src/core/lib/address_utils/sockaddr_utils.h"
 #include "src/core/lib/channel/channel_args.h"
 #include "src/core/lib/channel/handshaker.h"
-// #include "src/core/lib/channel/handshaker_ib.h"
 #include "src/core/lib/config/core_configuration.h"
 #include "src/core/lib/gprpp/memory.h"
 #include "src/core/lib/iomgr/endpoint.h"
@@ -54,8 +53,8 @@
 
 #include <fcntl.h>
 
-// #include "src/core/lib/iomgr/tcp_client_posix.h"
-#include "src/core/lib/iomgr/ib_client_posix.h"
+#include "src/core/lib/iomgr/tcp_client_posix.h"
+// #include "src/core/lib/iomgr/ib_client_posix.h"
 #include "src/core/lib/iomgr/tcp_posix.h"
 
 #endif  // GPR_SUPPORT_CHANNELS_FROM_FD
@@ -93,7 +92,6 @@ void Chttp2Connector::Connect(const Args& args, Result* result,
   // grpc_tcp_client_connect() will fill endpoint_ with proper contents, and we
   // make sure that we still exist at that point by taking a ref.
   Ref().release();  // Ref held by callback.
-  gpr_log(GPR_INFO, "src/core/ext/transport/chttp2/client/chttp2_connector.cc:Connect before grpc_rdma_client_connect");
   grpc_rdma_client_connect(&connected_, ep, args.interested_parties,
                           args.channel_args, args.address, args.deadline);
   // grpc_tcp_client_connect(&connected_, ep, args.interested_parties,

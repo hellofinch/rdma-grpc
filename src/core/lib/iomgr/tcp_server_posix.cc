@@ -254,6 +254,7 @@ static void on_read(void* arg, grpc_error_handle err) {
     }
 
     std::string name = absl::StrCat("tcp-server-connection:", addr_str);
+    std::cout << "src/core/lib/iomgr/tcp_server_posix.cc:StrCat " << name << std::endl;
     grpc_fd* fdobj = grpc_fd_create(fd, name.c_str(), true);
 
     read_notifier_pollset = (*(sp->server->pollsets))

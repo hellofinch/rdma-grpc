@@ -36,7 +36,7 @@ set(PACKAGE_STRING        "${PACKAGE_NAME} ${PACKAGE_VERSION}")
 set(PACKAGE_TARNAME       "${PACKAGE_NAME}-${PACKAGE_VERSION}")
 set(PACKAGE_BUGREPORT     "https://github.com/grpc/grpc/issues/")
 project(${PACKAGE_NAME} LANGUAGES C CXX)
-
+set(CMAKE_INSTALL_PREFIX "/public/home/lifei/xinzk/toolbox/grpc-install/")
 set(gRPC_INSTALL_BINDIR "bin" CACHE STRING "Installation directory for executables")
 set(gRPC_INSTALL_LIBDIR "lib" CACHE STRING "Installation directory for libraries")
 set(gRPC_INSTALL_INCLUDEDIR "include" CACHE STRING "Installation directory for headers")
@@ -1656,7 +1656,9 @@ add_library(grpc
   src/core/ext/filters/server_config_selector/server_config_selector_filter.cc
   src/core/ext/transport/chttp2/alpn/alpn.cc
   src/core/ext/transport/chttp2/client/chttp2_connector.cc
+  # src/core/ext/transport/chttp2/client/chttp2_connector_ib.cc
   src/core/ext/transport/chttp2/server/chttp2_server.cc
+  # src/core/ext/transport/chttp2/server/chttp2_server_ib.cc
   src/core/ext/transport/chttp2/transport/bin_decoder.cc
   src/core/ext/transport/chttp2/transport/bin_encoder.cc
   src/core/ext/transport/chttp2/transport/chttp2_transport.cc
@@ -1986,6 +1988,7 @@ add_library(grpc
   src/core/lib/channel/channelz_registry.cc
   src/core/lib/channel/connected_channel.cc
   src/core/lib/channel/handshaker.cc
+  # src/core/lib/channel/handshaker_ib.cc
   src/core/lib/channel/handshaker_registry.cc
   src/core/lib/channel/promise_based_filter.cc
   src/core/lib/channel/status_util.cc
@@ -2070,6 +2073,13 @@ add_library(grpc
   src/core/lib/iomgr/socket_utils_posix.cc
   src/core/lib/iomgr/socket_utils_windows.cc
   src/core/lib/iomgr/socket_windows.cc
+  src/core/lib/iomgr/ib_client_posix.cc
+  src/core/lib/iomgr/ib_client.cc
+  src/core/lib/iomgr/ib_server.cc
+  src/core/lib/iomgr/ib_server_posix.cc
+  src/core/lib/iomgr/rdma_cm.cc
+  src/core/lib/iomgr/rdma_utils_posix.cc
+  src/core/lib/iomgr/rdma_memory_management.cc
   src/core/lib/iomgr/tcp_client.cc
   src/core/lib/iomgr/tcp_client_cfstream.cc
   src/core/lib/iomgr/tcp_client_posix.cc
@@ -2287,6 +2297,8 @@ target_link_libraries(grpc
   absl::variant
   absl::utility
   gpr
+  rdmacm
+  ibverbs
   ${_gRPC_SSL_LIBRARIES}
   address_sorting
 )
@@ -2578,7 +2590,9 @@ add_library(grpc_unsecure
   src/core/ext/filters/message_size/message_size_filter.cc
   src/core/ext/transport/chttp2/alpn/alpn.cc
   src/core/ext/transport/chttp2/client/chttp2_connector.cc
+  # src/core/ext/transport/chttp2/client/chttp2_connector_ib.cc
   src/core/ext/transport/chttp2/server/chttp2_server.cc
+  # src/core/ext/transport/chttp2/server/chttp2_server_ib.cc
   src/core/ext/transport/chttp2/transport/bin_decoder.cc
   src/core/ext/transport/chttp2/transport/bin_encoder.cc
   src/core/ext/transport/chttp2/transport/chttp2_transport.cc
@@ -2630,6 +2644,7 @@ add_library(grpc_unsecure
   src/core/lib/channel/channelz_registry.cc
   src/core/lib/channel/connected_channel.cc
   src/core/lib/channel/handshaker.cc
+  # src/core/lib/channel/handshaker_ib.cc
   src/core/lib/channel/handshaker_registry.cc
   src/core/lib/channel/promise_based_filter.cc
   src/core/lib/channel/status_util.cc
@@ -2713,6 +2728,13 @@ add_library(grpc_unsecure
   src/core/lib/iomgr/socket_utils_posix.cc
   src/core/lib/iomgr/socket_utils_windows.cc
   src/core/lib/iomgr/socket_windows.cc
+  src/core/lib/iomgr/ib_client_posix.cc
+  src/core/lib/iomgr/ib_client.cc
+  src/core/lib/iomgr/ib_server.cc
+  src/core/lib/iomgr/ib_server_posix.cc
+  src/core/lib/iomgr/rdma_cm.cc
+  src/core/lib/iomgr/rdma_utils_posix.cc
+  src/core/lib/iomgr/rdma_memory_management.cc
   src/core/lib/iomgr/tcp_client.cc
   src/core/lib/iomgr/tcp_client_cfstream.cc
   src/core/lib/iomgr/tcp_client_posix.cc
@@ -2864,6 +2886,8 @@ target_link_libraries(grpc_unsecure
   absl::variant
   absl::utility
   gpr
+  ibverbs
+  rdmacm
   address_sorting
 )
 if(_gRPC_PLATFORM_IOS OR _gRPC_PLATFORM_MAC)

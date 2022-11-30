@@ -53,6 +53,8 @@
 #include "src/core/lib/transport/error_utils.h"
 #include "src/core/lib/uri/uri_parser.h"
 
+#include "src/core/lib/surface/api_trace.h"
+
 // Strong and weak refs.
 #define INTERNAL_REF_BITS 16
 #define STRONG_REF_MASK (~(gpr_atm)((1 << INTERNAL_REF_BITS) - 1))
@@ -930,7 +932,9 @@ void Subchannel::ContinueConnectingLocked() {
   args.deadline = std::max(next_attempt_deadline_, min_deadline);
   args.channel_args = args_;
   SetConnectivityStateLocked(GRPC_CHANNEL_CONNECTING, absl::Status());
+  GRPC_API_TRACE("src/core/ext/filters/client_channel/subchannel.cc:ContinueConnectingLocked() before connector_->Connect()",0, ());
   connector_->Connect(args, &connecting_result_, &on_connecting_finished_);
+  GRPC_API_TRACE("src/core/ext/filters/client_channel/subchannel.cc:ContinueConnectingLocked() after connector_->Connect()",0, ());
 }
 
 void Subchannel::OnConnectingFinished(void* arg, grpc_error_handle error) {

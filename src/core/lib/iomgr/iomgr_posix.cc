@@ -27,13 +27,19 @@
 #include "src/core/lib/iomgr/iomgr_internal.h"
 #include "src/core/lib/iomgr/resolve_address.h"
 #include "src/core/lib/iomgr/resolve_address_posix.h"
-#include "src/core/lib/iomgr/tcp_client.h"
+#include "src/core/lib/iomgr/ib_client.h"
+// #include "src/core/lib/iomgr/tcp_client.h"
 #include "src/core/lib/iomgr/tcp_posix.h"
-#include "src/core/lib/iomgr/tcp_server.h"
+// #include "src/core/lib/iomgr/tcp_server.h"
+#include "src/core/lib/iomgr/ib_server.h"
 #include "src/core/lib/iomgr/timer.h"
+#include "src/core/lib/surface/api_trace.h"
+#include "src/core/lib/iomgr/rdma_cm.h"
 
-extern grpc_tcp_server_vtable grpc_posix_tcp_server_vtable;
-extern grpc_tcp_client_vtable grpc_posix_tcp_client_vtable;
+// extern grpc_tcp_server_vtable grpc_posix_tcp_server_vtable;
+// extern grpc_tcp_client_vtable grpc_posix_tcp_client_vtable;
+extern grpc_rdma_server_vtable grpc_posix_rdma_server_vtable;
+extern grpc_rdma_client_vtable grpc_posix_rdma_client_vtable;
 extern grpc_timer_vtable grpc_generic_timer_vtable;
 extern grpc_pollset_vtable grpc_posix_pollset_vtable;
 extern grpc_pollset_set_vtable grpc_posix_pollset_set_vtable;
@@ -74,8 +80,13 @@ static grpc_iomgr_platform_vtable vtable = {
     iomgr_platform_add_closure_to_background_poller};
 
 void grpc_set_default_iomgr_platform() {
-  grpc_set_tcp_client_impl(&grpc_posix_tcp_client_vtable);
-  grpc_set_tcp_server_impl(&grpc_posix_tcp_server_vtable);
+  // std::cout << "src/core/lib/iomgr/iomgr_posix.cc:grpc_set_default_iomgr_platform"<< std::endl;
+  // grpc_set_tcp_client_impl(&grpc_posix_tcp_client_vtable);
+  grpc_set_rdma_client_impl(&grpc_posix_rdma_client_vtable);
+  // std::cout << "src/core/lib/iomgr/iomgr_posix.cc:grpc_set_default_iomgr_platform:grpc_set_tcp_client_impl" << std::endl;
+  // grpc_set_tcp_server_impl(&grpc_posix_tcp_server_vtable);
+  grpc_set_rdma_server_impl(&grpc_posix_rdma_server_vtable);
+  // std::cout << "src/core/lib/iomgr/iomgr_posix.cc:grpc_set_default_iomgr_platform:grpc_set_tcp_server_impl"<< std::endl;
   grpc_set_timer_impl(&grpc_generic_timer_vtable);
   grpc_set_pollset_vtable(&grpc_posix_pollset_vtable);
   grpc_set_pollset_set_vtable(&grpc_posix_pollset_set_vtable);
