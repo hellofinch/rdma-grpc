@@ -45,7 +45,7 @@
 struct async_connect{
   gpr_mu mu;
   grpc_fd *connectfd;
-  grpc_core::Timestamp deadline;
+  // grpc_core::Timestamp deadline;
   struct rdma_event_channel *ec;
   grpc_timer alarm;
   grpc_closure on_alarm;
@@ -64,30 +64,35 @@ struct async_connect{
 } ;
 
 static void tc_on_alarm(void *acp, grpc_error *error) {
-  gpr_log(GPR_DEBUG,"CLIENT FUNC:tc_on_alarm CALLED");
+  gpr_log(GPR_INFO,"CLIENT FUNC:tc_on_alarm CALLED");
   async_connect *ac = static_cast<async_connect*>(acp);
+  gpr_log(GPR_INFO, "CLIENT_CONNECT: %s: on_alarm: error=%s",ac->addr_str.c_str(), grpc_error_std_string(error).c_str());
   int done;
   gpr_mu_lock(&ac->mu);
-  done = (--ac->refs == 0);
   if (ac->connected == 0) {
     if (ac->connectfd != NULL) {
       grpc_fd_shutdown(ac->connectfd,GRPC_ERROR_CREATE_FROM_STATIC_STRING("connect() timed out"));
     }
     ac->time_out = 1;
   }
+  done = (--ac->refs == 0);
+  gpr_log(GPR_INFO,"ac->refs:%d",ac->refs);
   gpr_mu_unlock(&ac->mu);
 
   if (done) {
+    gpr_log(GPR_INFO,"ac->refs:%d",ac->refs);
     // if (ac->addr_str != NULL) {
     //   gpr_free(ac->addr_str);
     //   ac->addr_str = NULL;
     // }
-    if (ac != NULL) {
+    // if (ac != NULL) {
       gpr_mu_destroy(&ac->mu);
+      grpc_channel_args_destroy(ac->channel_args);
+      delete ac;
       // gpr_free(ac->addr_str);
-      gpr_free(ac);
-      ac = NULL;
-    } 
+      // gpr_free(ac);
+      // ac = NULL;
+    // } 
   }
 }
 
@@ -165,9 +170,9 @@ static int on_addr_resolved(struct rdma_cm_id *id) {
     gpr_log(GPR_ERROR, "Client: rdma_create_qp() failed: %s",strerror(errno));
     return -1;
   }
-  gpr_log(GPR_DEBUG,"The actual size is(%d,%d)",qp_attr.cap.max_send_wr,qp_attr.cap.max_recv_wr);
+  gpr_log(GPR_INFO,"The actual size is(%d,%d)",qp_attr.cap.max_send_wr,qp_attr.cap.max_recv_wr);
   send_buffer_region = (char*)gpr_malloc(INIT_RECV_BUFFER_SIZE);
-    rdma_mem_manager* manager=rdma_mm_create();
+  rdma_mem_manager* manager=rdma_mm_create();
   rdma_mem_node* node;
   for(i=0;i<RDMA_POST_RECV_NUM;++i){
     node=rdma_mm_alloc_node(manager);
@@ -256,13 +261,11 @@ static int on_disconnect(struct rdma_cm_id *id) {
     grpc_rdma_sentence_death(context->ep);
   }
   rdma_ctx_unref(context);
-
+// std::cout << "src/core/lib/iomgr/ib_client_posix.cc:on_disconnect()" << std::endl;
   return 0;
 }
 
-static void grpc_rdma_client_on_event(void *arg, grpc_error_handle error) {
-  GRPC_API_TRACE("src/core/lib/iomgr/ib_client_posix.cc:grpc_rdma_client_on_event() head",0, ());
-  std::cout << "src/core/lib/iomgr/ib_client_posix.cc:grpc_rdma_client_on_event() head" << std::endl;
+static void client_on_event(void *arg, grpc_error_handle error) {
   async_connect *ac = static_cast<async_connect*>(arg);
   grpc_endpoint **ep = ac->ep;
   struct rdma_event_channel *ec = ac->ec;
@@ -280,10 +283,9 @@ static void grpc_rdma_client_on_event(void *arg, grpc_error_handle error) {
   struct rdma_conn_param cm_params;
   int poll_count = 0;
 
+  GRPC_API_TRACE("client_on_event error begin %s",1, (grpc_error_std_string(error).c_str()));
+  // std::cout << "client_on_event error begin " << grpc_error_std_string(error).c_str() << std::endl;
   (void)GRPC_ERROR_REF(error);
-
-  GRPC_API_TRACE("src/core/lib/iomgr/ib_client_posix.cc:grpc_rdma_client_on_event() before go to finish",0, ());
-  std::cout << "src/core/lib/iomgr/ib_client_posix.cc:grpc_rdma_client_on_event() before go to finish" << std::endl;
   if (error != GRPC_ERROR_NONE ) {
     goto finish;
   }
@@ -291,15 +293,13 @@ static void grpc_rdma_client_on_event(void *arg, grpc_error_handle error) {
   gpr_mu_lock(&ac->mu);
   timeout = ac->time_out ;
   gpr_mu_unlock(&ac->mu);
-  grpc_timer_cancel(&ac->alarm);
   if (timeout == 1) {
+  // if (error != GRPC_ERROR_NONE) {
     gpr_log(GPR_ERROR, "Client: Timeout occurred");
     error =
       grpc_error_set_str(error, GRPC_ERROR_STR_OS_ERROR, "Timeout occurred");
     goto finish;
   }
-  GRPC_API_TRACE("src/core/lib/iomgr/ib_client_posix.cc:grpc_rdma_client_on_event() after time check",0, ());
-  std::cout << "src/core/lib/iomgr/ib_client_posix.cc:grpc_rdma_client_on_event() after time check" << std::endl;
   while (rdma_get_cm_event(ec, &event) != 0) {
     if (errno == EAGAIN && ++poll_count < 100){
       usleep(50000);
@@ -308,25 +308,30 @@ static void grpc_rdma_client_on_event(void *arg, grpc_error_handle error) {
       goto finish;
     }
   }
-  GRPC_API_TRACE("src/core/lib/iomgr/ib_client_posix.cc:grpc_rdma_client_on_event() after rdma_get_cm_event",0, ());
-  std::cout << "src/core/lib/iomgr/ib_client_posix.cc:grpc_rdma_client_on_event() after rdma_get_cm_event" << std::endl;
+
   memcpy(&event_handle, event, sizeof(*event));
   id = event_handle.id;
   rdma_ack_cm_event(event);
-  
-  GRPC_API_TRACE("src/core/lib/iomgr/ib_client_posix.cc:grpc_rdma_client_on_event() before switch %d %d",2, (event_handle.id,event_handle.event));
-  std::cout << "src/core/lib/iomgr/ib_client_posix.cc:grpc_rdma_client_on_event() before switch " << event_handle.id <<" " << event_handle.event << std::endl;
+  // std::cout << "src/core/lib/iomgr/ib_client_posix.cc:client_on_event() event_handle.event 2" << std::endl;
   switch (event_handle.event) {
     case RDMA_CM_EVENT_ADDR_RESOLVED:
-      gpr_log(GPR_DEBUG, "Client: on_event RDMA_CM_EVENT_ADDR_RESOLVED");
+      gpr_log(GPR_INFO, "Client: on_event RDMA_CM_EVENT_ADDR_RESOLVED");
+      // std::cout << "Client: on_event RDMA_CM_EVENT_ADDR_RESOLVED " << grpc_error_std_string(error).c_str() << std::endl;
       if (on_addr_resolved(id) != 0) {
         error = grpc_error_set_str(error, 
             GRPC_ERROR_STR_DESCRIPTION, "Failed on on_addr_resolved");
+        GRPC_API_TRACE("Client: on_event RDMA_CM_EVENT_ADDR_RESOLVED %s",1, (grpc_error_std_string(error).c_str()));
+        // std::cout << "Client: on_event RDMA_CM_EVENT_ADDR_RESOLVED " << grpc_error_std_string(error).c_str() << std::endl;
         goto finish;
-      }
+      }  
+      GRPC_API_TRACE("client_on_event case RDMA_CM_EVENT_ADDR_RESOLVED %s",1, (grpc_error_std_string(error).c_str()));
+      // std::cout << "client_on_event case RDMA_CM_EVENT_ADDR_RESOLVED " << grpc_error_std_string(error).c_str() << std::endl;
+      // std::cout << "Client: on_event RDMA_CM_EVENT_ADDR_RESOLVED" << std::endl;
       break;
     case RDMA_CM_EVENT_ROUTE_RESOLVED:
-      gpr_log(GPR_DEBUG, "Client: on_event RDMA_CM_EVENT_ROUTE_RESOLVED");
+      gpr_log(GPR_INFO, "Client: on_event RDMA_CM_EVENT_ROUTE_RESOLVED");
+      GRPC_API_TRACE("Client: on_event RDMA_CM_EVENT_ROUTE_RESOLVED",0, ());
+      // std::cout << "Client: on_event RDMA_CM_EVENT_ROUTE_RESOLVED"<< std::endl;
       memset(&cm_params, 0, sizeof(cm_params));
       if ((rdma_connect(id, &cm_params)) != 0) {
         error = grpc_error_set_str(error,
@@ -335,11 +340,14 @@ static void grpc_rdma_client_on_event(void *arg, grpc_error_handle error) {
       }
       break;
     case RDMA_CM_EVENT_ESTABLISHED:
-      gpr_log(GPR_DEBUG, "Client: on_event RDMA_CM_EVENT_ESTABLISHED");
+      gpr_log(GPR_INFO, "Client: on_event RDMA_CM_EVENT_ESTABLISHED");
+      // std::cout << "Client: on_event RDMA_CM_EVENT_ESTABLISHED"<< std::endl;
       gpr_mu_lock(&ac->mu);
       ac->connected = 1;
       gpr_mu_unlock(&ac->mu);
+
       //grpc_timer_cancel(exec_ctx, &ac->alarm);
+
       name = "rdma-client:"+ac->addr_str;
       // gpr_asprintf(&name, "rdma-client:%s", ac->addr_str.c_str()); 
       context = (struct connect_context *)id->context;
@@ -349,60 +357,72 @@ static void grpc_rdma_client_on_event(void *arg, grpc_error_handle error) {
       ac->sendfdobj = context->sendfdobj;
       ac->recvfdobj = context->recvfdobj;
       // *ep = grpc_rdma_create(id->context, ac->addr_str);
-      *ep = grpc_rdma_create(context, ac->addr_str.c_str());
+      *ep = grpc_rdma_create((struct connect_context *)id->context, ac->addr_str.c_str());
       context->ep = *ep;
-
       grpc_core::ExecCtx::Run(DEBUG_LOCATION, closure, error);
       ac->cb_called = 1;
-
       // gpr_free(name);
       break;
     case RDMA_CM_EVENT_DISCONNECTED:
-      gpr_log(GPR_DEBUG, "Client: on_event RDMA_CM_EVENT_DISCONNECTED");
+      gpr_log(GPR_INFO, "Client: on_event RDMA_CM_EVENT_DISCONNECTED");
+      // std::cout << "Client: on_event RDMA_CM_EVENT_DISCONNECTED 1"<< std::endl;
       on_disconnect(id);
+      // std::cout << "Client: on_event RDMA_CM_EVENT_DISCONNECTED 2"<< std::endl;
       goto done;
       break;
     default:
-      gpr_log(GPR_ERROR, "Client: on_event Unknow RDMA_CM_EVENT:%d", event_handle.event);
+      gpr_log(GPR_INFO, "Client: on_event Unknow RDMA_CM_EVENT:%d", event_handle.event);
+      GRPC_API_TRACE("Client: on_event Unknow RDMA_CM_EVENT:%d",1, (event_handle.event));
+      // std::cout << "Client: on_event Unknow RDMA_CM_EVENT:%d " << event_handle.event << std::endl;
       error = grpc_error_set_str(error, GRPC_ERROR_STR_DESCRIPTION, "Get Unknow RDMA_CM_EVENT");
       goto finish;
       break;
   }
 
   grpc_fd_notify_on_read(ac->connectfd, &ac->write_closure);
-
+  // std::cout << "src/core/lib/iomgr/ib_client_posix.cc:client_on_event() event_handle.event 1" << std::endl;
+  GRPC_API_TRACE("client_on_event end switch %s",1, (grpc_error_std_string(error).c_str()));
+  // std::cout << "client_on_event end switch " << grpc_error_std_string(error).c_str() << std::endl;
   return;
 
 finish:
   //grpc_timer_cancel(exec_ctx, &ac->alarm);
-  error = grpc_error_set_str(error, 
-      GRPC_ERROR_STR_DESCRIPTION, "Failed to connect to remote host");
-  error = grpc_error_set_str(error,GRPC_ERROR_STR_TARGET_ADDRESS, ac->addr_str);
-
-  grpc_core::ExecCtx::Run(DEBUG_LOCATION, closure, error);  
+  if(error!=GRPC_ERROR_NONE){
+    error = grpc_error_set_str(error, GRPC_ERROR_STR_DESCRIPTION, "Failed to connect to remote host");
+    error = grpc_error_set_str(error,GRPC_ERROR_STR_TARGET_ADDRESS, ac->addr_str);
+    GRPC_API_TRACE("src/core/lib/iomgr/ib_client_posix.cc:client_on_event() in finish %s",1, (grpc_error_std_string(error).c_str()));
+  }
   ac->cb_called = 1;
 
 done:
   if (ac->connectfd != NULL) {
-    //grpc_pollset_set_del_fd(exec_ctx, ac->interested_parties, ac->connectfd);
+    // grpc_pollset_set_del_fd(ac->interested_parties, ac->connectfd);
     grpc_fd_orphan(ac->connectfd, NULL, NULL, "tcp_client_orphan");
     ac->connectfd = NULL;
   }
 
   gpr_mu_lock(&ac->mu);
   done = (--ac->refs == 0);
+  gpr_log(GPR_INFO,"ac->refs:%d",ac->refs);
   gpr_mu_unlock(&ac->mu);
   if (done) {
+    gpr_log(GPR_INFO,"ac->refs:%d",ac->refs);
     // if (ac->addr_str != NULL) {
     //   gpr_free(ac->addr_str);
     //   ac->addr_str = NULL;
     // }
-    if (ac != NULL) {
-      gpr_mu_destroy(&ac->mu);
-      gpr_free(ac);
-      ac = NULL;
-    }
+    gpr_mu_destroy(&ac->mu);
+    grpc_channel_args_destroy(ac->channel_args);
+    delete ac;
+    // if (ac != NULL) {
+    //   gpr_mu_destroy(&ac->mu);
+    //   gpr_free(ac);
+    //   ac = NULL;
+    // }
   }
+  grpc_core::ExecCtx::Run(DEBUG_LOCATION, closure, error);
+  GRPC_API_TRACE("client_on_event end all",0, ());
+  // std::cout << "client_on_event end all" << std::endl;
   return;
 }
 
@@ -427,8 +447,8 @@ static void rdma_client_connect_impl(grpc_closure *closure, grpc_endpoint **ep,
     rdma_destroy_event_channel(ec);
     return;
   }
-  // gpr_log(GPR_DEBUG, "rdma_client_connect_impl");
-  GRPC_API_TRACE("src/core/lib/iomgr/ib_client_posix.cc:rdma_client_connect_impl() after rdma_create_id",0, ());
+
+  gpr_log(GPR_INFO, "rdma_client_connect_impl");
   // grpc_rdma_util_print_addr((struct sockaddr *)(addr->addr));
 
   if (rdma_resolve_addr(conn, NULL, (struct sockaddr *)(addr->addr), gpr_time_to_millis(deadline.as_timespec(GPR_TIMESPAN))) != 0) {
@@ -446,6 +466,7 @@ static void rdma_client_connect_impl(grpc_closure *closure, grpc_endpoint **ep,
   }
   connectfd = ec->fd;
   std::string name = absl::StrCat("rdma-client-connection:", grpc_sockaddr_to_uri(addr));
+  // std::cout << "src/core/lib/iomgr/ib_client_posix.cc:rdma_client_connect_impl() name: " << name << std::endl;
   fdobj = grpc_fd_create(connectfd, name.c_str(),true); 
   grpc_pollset_set_add_fd(interested_parties, fdobj);
 
@@ -456,11 +477,14 @@ static void rdma_client_connect_impl(grpc_closure *closure, grpc_endpoint **ep,
   ac->connectfd = fdobj;
   ac->interested_parties = interested_parties;
   ac->addr_str = grpc_sockaddr_to_uri(addr);
+  GRPC_API_TRACE("src/core/lib/iomgr/ib_client_posix.cc:rdma_client_connect_impl() init mu",0, ());
+  // std::cout << "src/core/lib/iomgr/ib_client_posix.cc:rdma_client_connect_impl() init mu" << std::endl;
   gpr_mu_init(&ac->mu);
   ac->refs = 2;
-  // ac->write_closure.cb = grpc_rdma_client_on_event;
+  // ac->write_closure.cb = client_on_event;
   // ac->write_closure.cb_arg = ac;
-  GRPC_CLOSURE_INIT(&ac->write_closure, grpc_rdma_client_on_event, ac,grpc_schedule_on_exec_ctx);
+  GRPC_CLOSURE_INIT(&ac->write_closure, client_on_event, ac,grpc_schedule_on_exec_ctx);
+  // GRPC_CLOSURE_INIT(&ac->write_closure, client_on_event, ac,NULL);
   ac->channel_args = grpc_channel_args_copy(channel_args);
   ac->time_out=0;
   ac->connected=0;
@@ -472,12 +496,14 @@ static void rdma_client_connect_impl(grpc_closure *closure, grpc_endpoint **ep,
   //     gpr_convert_clock_type(deadline, GPR_CLOCK_MONOTONIC),
   //     tc_on_alarm, ac, gpr_now(GPR_CLOCK_MONOTONIC));
   GRPC_CLOSURE_INIT(&ac->on_alarm, tc_on_alarm, ac, grpc_schedule_on_exec_ctx);
+  // GRPC_CLOSURE_INIT(&ac->on_alarm, tc_on_alarm, ac, NULL);
   grpc_timer_init(&ac->alarm, deadline, &ac->on_alarm);
   /* lkx810 : Use grpc_fd_notify_on_write() to get rdma ec event 
    * until get event RDMA_CM_EVENT_ESTABLISHED */
   grpc_fd_notify_on_read(ac->connectfd, &ac->write_closure);
   gpr_mu_unlock(&ac->mu);
   GRPC_API_TRACE("src/core/lib/iomgr/ib_client_posix.cc:rdma_client_connect_impl() end",0, ());
+  // std::cout << "src/core/lib/iomgr/ib_client_posix.cc:rdma_client_connect_impl() end" << std::endl;
 }
 
 grpc_rdma_client_vtable grpc_posix_rdma_client_vtable = {rdma_client_connect_impl};

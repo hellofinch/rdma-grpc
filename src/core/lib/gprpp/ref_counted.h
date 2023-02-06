@@ -83,9 +83,9 @@ class RefCount {
 #ifndef NDEBUG
     const Value prior = value_.fetch_add(n, std::memory_order_relaxed);
     if (trace_ != nullptr) {
-      gpr_log(GPR_INFO, "%s:%p %s:%d ref %" PRIdPTR " -> %" PRIdPTR " %s",
-              trace_, this, location.file(), location.line(), prior, prior + n,
-              reason);
+      // gpr_log(GPR_INFO, "%s:%p %s:%d ref %" PRIdPTR " -> %" PRIdPTR " %s",
+      //         trace_, this, location.file(), location.line(), prior, prior + n,
+      //         reason);
     }
 #else
     // Use conditionally-important parameters
@@ -179,9 +179,9 @@ class RefCount {
     const Value prior = value_.fetch_sub(1, std::memory_order_acq_rel);
 #ifndef NDEBUG
     if (trace != nullptr) {
-      gpr_log(GPR_INFO, "%s:%p %s:%d unref %" PRIdPTR " -> %" PRIdPTR " %s",
-              trace, this, location.file(), location.line(), prior, prior - 1,
-              reason);
+      // gpr_log(GPR_INFO, "%s:%p %s:%d unref %" PRIdPTR " -> %" PRIdPTR " %s",
+      //         trace, this, location.file(), location.line(), prior, prior - 1,
+      //         reason);
     }
     GPR_DEBUG_ASSERT(prior > 0);
 #else

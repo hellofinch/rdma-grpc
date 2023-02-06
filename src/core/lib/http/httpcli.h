@@ -38,6 +38,8 @@
 #include "src/core/lib/security/credentials/credentials.h"
 #include "src/core/lib/uri/uri_parser.h"
 
+#include "src/core/lib/iomgr/ib_client.h"
+
 /* User agent this library reports */
 #define GRPC_HTTPCLI_USER_AGENT "grpc-httpcli/0.0"
 
@@ -142,6 +144,7 @@ class HttpRequest : public InternallyRefCounted<HttpRequest> {
 
   void DoRead() ABSL_EXCLUSIVE_LOCKS_REQUIRED(mu_) {
     Ref().release();  // ref held by pending read
+    std::cout << "DoRead() before grpc_endpoint_read" << std::endl;
     grpc_endpoint_read(ep_, &incoming_, &on_read_, /*urgent=*/true);
   }
 

@@ -22,9 +22,9 @@ typedef struct grpc_rdma_server_acceptor {
   /* Indices that may be passed to grpc_rdma_server_port_fd(). */
   unsigned port_index;
   unsigned fd_index;
-  grpc_byte_buffer* pending_data;
   bool external_connection;
   int listener_fd;
+  grpc_byte_buffer* pending_data;
 } grpc_rdma_server_acceptor;
 
 /* Called for newly connected rdma connections. */
@@ -43,7 +43,7 @@ typedef struct grpc_rdma_server_vtable {
   grpc_error_handle (*add_port)(grpc_rdma_server* s,
                                 const grpc_resolved_address* addr,
                                 int* out_port);
-//   grpc_core::TcpServerFdHandler* (*create_fd_handler)(grpc_tcp_server* s);
+   //   grpc_core::TcpServerFdHandler* (*create_fd_handler)(grpc_tcp_server* s);
   unsigned (*port_fd_count)(grpc_rdma_server* s, unsigned port_index);
   int (*port_fd)(grpc_rdma_server* s, unsigned port_index, unsigned fd_index);
   grpc_rdma_server* (*ref)(grpc_rdma_server* s);

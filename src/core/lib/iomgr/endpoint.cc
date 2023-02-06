@@ -24,11 +24,13 @@ grpc_core::TraceFlag grpc_tcp_trace(false, "tcp");
 
 void grpc_endpoint_read(grpc_endpoint* ep, grpc_slice_buffer* slices,
                         grpc_closure* cb, bool urgent) {
+  // std::cout << "endpoint: grpc_endpoint_read" << std::endl;
   ep->vtable->read(ep, slices, cb, urgent);
 }
 
 void grpc_endpoint_write(grpc_endpoint* ep, grpc_slice_buffer* slices,
                          grpc_closure* cb, void* arg) {
+  // std::cout << "endpoint: grpc_endpoint_write" << std::endl;
   ep->vtable->write(ep, slices, cb, arg);
 }
 

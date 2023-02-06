@@ -483,6 +483,7 @@ void Chttp2ServerListener::ActiveConnection::HandshakingState::OnHandshakeDone(
             // will not be invoked when a config fetcher is set.
             cleanup_connection = true;
           }
+          std::cout << "src/core/ext/transport/chttp2/server/chttp2_server.cc:Chttp2ServerListener::ActiveConnection::HandshakingState::OnHandshakeDone() before grpc_chttp2_transport_start_reading" << std::endl;
           grpc_chttp2_transport_start_reading(transport, args->read_buffer,
                                               &self->on_receive_settings_,
                                               on_close);
@@ -513,9 +514,12 @@ void Chttp2ServerListener::ActiveConnection::HandshakingState::OnHandshakeDone(
     handshake_mgr = std::move(self->handshake_mgr_);
     handshaking_state_ref = std::move(self->connection_->handshaking_state_);
   }
-  gpr_free(self->acceptor_);
-  self->acceptor_ = nullptr;
   OrphanablePtr<ActiveConnection> connection;
+  // std::cout << "src/core/ext/transport/chttp2/server/chttp2_server.cc:Chttp2ServerListener::ActiveConnection::HandshakingState::OnHandshakeDone() handshaking_state_ref move " << self->acceptor_ << std::endl;
+  gpr_free(self->acceptor_); //这个地方不会double free了，client端没有结束。
+  // std::cout << "src/core/ext/transport/chttp2/server/chttp2_server.cc:Chttp2ServerListener::ActiveConnection::HandshakingState::OnHandshakeDone() handshaking_state_ref move " << self->acceptor_ << std::endl;
+  self->acceptor_ = nullptr;
+  // std::cout << "src/core/ext/transport/chttp2/server/chttp2_server.cc:Chttp2ServerListener::ActiveConnection::HandshakingState::OnHandshakeDone() handshaking_state_ref move " << self->acceptor_ << std::endl;
   if (cleanup_connection) {
     MutexLock listener_lock(&self->connection_->listener_->mu_);
     auto it = self->connection_->listener_->connections_.find(
@@ -526,6 +530,7 @@ void Chttp2ServerListener::ActiveConnection::HandshakingState::OnHandshakeDone(
     }
   }
   self->Unref();
+  
 }
 
 //
@@ -656,6 +661,7 @@ grpc_error_handle Chttp2ServerListener::Create(
   GRPC_API_TRACE(
       "src/core/ext/transport/chttp2/server/chttp2_server.cc:Create()",
       0, ());
+  // std::cout << "src/core/ext/transport/chttp2/server/chttp2_server.cc:Create()" << std::endl;
   Chttp2ServerListener* listener = nullptr;
   // The bulk of this method is inside of a lambda to make cleanup
   // easier without using goto.
@@ -664,11 +670,13 @@ grpc_error_handle Chttp2ServerListener::Create(
     GRPC_API_TRACE(
       "src/core/ext/transport/chttp2/server/chttp2_server.cc:Create() before Chttp2ServerListener",
       0, ());
+    // std::cout << "src/core/ext/transport/chttp2/server/chttp2_server.cc:Create() before Chttp2ServerListener" << std::endl;
     // Create Chttp2ServerListener.
     listener = new Chttp2ServerListener(server, args, args_modifier);
-  GRPC_API_TRACE(
+    GRPC_API_TRACE(
       "src/core/ext/transport/chttp2/server/chttp2_server.cc:Create() before grpc_rdma_server_create",
       0, ());
+    // std::cout << "src/core/ext/transport/chttp2/server/chttp2_server.cc:Create() before grpc_rdma_server_create" << std::endl;
     error = grpc_rdma_server_create(&listener->rdma_server_shutdown_complete_,
                                    args, &listener->rdma_server_);
     if (error != GRPC_ERROR_NONE) return error;
@@ -772,7 +780,9 @@ void Chttp2ServerListener::StartListening() {
   GRPC_API_TRACE(
       "src/core/ext/transport/chttp2/server/chttp2_server.cc:StartListening(), before grpc_rdma_server_start",
       0, ());
+  // std::cout << "src/core/ext/transport/chttp2/server/chttp2_server.cc:StartListening(), before grpc_rdma_server_start" << std::endl;
   grpc_rdma_server_start(rdma_server_, &server_->pollsets(), OnAccept, this);
+  // std::cout << "src/core/ext/transport/chttp2/server/chttp2_server.cc:StartListening() call end?" << std::endl;
 }
 
 void Chttp2ServerListener::SetOnDestroyDone(grpc_closure* on_destroy_done) {
@@ -820,7 +830,7 @@ void Chttp2ServerListener::OnAccept(void* arg, grpc_endpoint* tcp,
     grpc_error_handle error = GRPC_ERROR_NONE;
     args = self->args_modifier_(*args_result, &error);
     if (error != GRPC_ERROR_NONE) {
-      gpr_log(GPR_DEBUG, "Closing connection: %s",
+      gpr_log(GPR_INFO, "Closing connection: %s",
               grpc_error_std_string(error).c_str());
       endpoint_cleanup(error);
       grpc_channel_args_destroy(args);
@@ -828,12 +838,15 @@ void Chttp2ServerListener::OnAccept(void* arg, grpc_endpoint* tcp,
     }
     args_to_destroy = args;
   }
+  // std::cout << "chttp2_server.cc OnAccept" << std::endl;
   auto memory_owner = self->memory_quota_->CreateMemoryOwner(
       absl::StrCat(grpc_endpoint_get_peer(tcp), ":server_channel"));
   auto connection = memory_owner.MakeOrphanable<ActiveConnection>(
       accepting_pollset, acceptor, args, std::move(memory_owner));
+  // std::cout << "chttp2_server.cc OnAccept acceptor " << acceptor << std::endl;
   // We no longer own acceptor
   acceptor = nullptr;
+  // std::cout << "chttp2_server.cc OnAccept acceptor " << acceptor << std::endl;
   // Hold a ref to connection to allow starting handshake outside the
   // critical region
   RefCountedPtr<ActiveConnection> connection_ref = connection->Ref();
@@ -854,9 +867,12 @@ void Chttp2ServerListener::OnAccept(void* arg, grpc_endpoint* tcp,
     }
   }
   if (connection != nullptr) {
+    // std::cout << "Chttp2ServerListener::OnAccept endpoint_cleanup" << std::endl;
     endpoint_cleanup(GRPC_ERROR_NONE);
   } else {
     connection_ref->Start(std::move(listener_ref), tcp, args);
+    // std::cout << "Chttp2ServerListener::OnAccept connection_ref->Start(" << std::endl;
+    gpr_log(GPR_INFO,"connection_ref->Start(");
   }
   grpc_channel_args_destroy(args_to_destroy);
 }
@@ -1023,6 +1039,7 @@ int grpc_server_add_http2_port(grpc_server* server, const char* addr,
   grpc_core::Server* core_server = grpc_core::Server::FromC(server);
   GRPC_API_TRACE("grpc_server_add_http2_port(server=%p, addr=%s, creds=%p)", 3,
                  (server, addr, creds));
+  // std::cout << "grpc_server_add_http2_port(server="<<server<<", addr="<< addr <<"creds="<< creds<< ")" << std::endl;
   // Create security context.
   if (creds == nullptr) {
     err = GRPC_ERROR_CREATE_FROM_STATIC_STRING(
@@ -1074,6 +1091,8 @@ done:
 #ifdef GPR_SUPPORT_CHANNELS_FROM_FD
 void grpc_server_add_channel_from_fd(grpc_server* server, int fd,
                                      grpc_server_credentials* creds) {
+  // std::cout << "Chttp2ServerListener::grpc_server_add_channel_from_fd" << std::endl;
+
   // // For now, we only support insecure server credentials
   // if (creds == nullptr ||
   //     strcmp(creds->type(), GRPC_CREDENTIALS_TYPE_INSECURE) != 0) {

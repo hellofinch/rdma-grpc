@@ -46,8 +46,8 @@
 #define MIN_QUEUE_WINDOW_DURATION 0.01
 #define MAX_QUEUE_WINDOW_DURATION 1.0
 
-grpc_core::TraceFlag grpc_timer_trace(false, "timer");
-grpc_core::TraceFlag grpc_timer_check_trace(false, "timer_check");
+grpc_core::TraceFlag grpc_timer_trace(true, "timer");
+grpc_core::TraceFlag grpc_timer_check_trace(true, "timer_check");
 
 /* A "timer shard". Contains a 'heap' and a 'list' of timers. All timers with
  * deadlines earlier than 'queue_deadline_cap' are maintained in the heap and
@@ -485,7 +485,7 @@ static bool refill_heap(timer_shard* shard, grpc_core::Timestamp now) {
       std::max(now, shard->queue_deadline_cap) +
       grpc_core::Duration::FromSecondsAsDouble(deadline_delta);
 
-  if (GRPC_TRACE_FLAG_ENABLED(grpc_timer_check_trace)) {
+  if (false) {
     gpr_log(GPR_INFO, "  .. shard[%d]->queue_deadline_cap --> %" PRId64,
             static_cast<int>(shard - g_shards),
             shard->queue_deadline_cap.milliseconds_after_process_epoch());
@@ -497,7 +497,7 @@ static bool refill_heap(timer_shard* shard, grpc_core::Timestamp now) {
             timer->deadline);
 
     if (timer_deadline < shard->queue_deadline_cap) {
-      if (GRPC_TRACE_FLAG_ENABLED(grpc_timer_check_trace)) {
+      if (false) {
         gpr_log(GPR_INFO, "  .. add timer with deadline %" PRId64 " to heap",
                 timer_deadline.milliseconds_after_process_epoch());
       }
@@ -514,7 +514,7 @@ static bool refill_heap(timer_shard* shard, grpc_core::Timestamp now) {
 static grpc_timer* pop_one(timer_shard* shard, grpc_core::Timestamp now) {
   grpc_timer* timer;
   for (;;) {
-    if (GRPC_TRACE_FLAG_ENABLED(grpc_timer_check_trace)) {
+    if (false) {
       gpr_log(GPR_INFO, "  .. shard[%d]: heap_empty=%s",
               static_cast<int>(shard - g_shards),
               grpc_timer_heap_is_empty(&shard->heap) ? "true" : "false");
@@ -527,7 +527,7 @@ static grpc_timer* pop_one(timer_shard* shard, grpc_core::Timestamp now) {
     auto timer_deadline =
         grpc_core::Timestamp::FromMillisecondsAfterProcessEpoch(
             timer->deadline);
-    if (GRPC_TRACE_FLAG_ENABLED(grpc_timer_check_trace)) {
+    if (false) {
       gpr_log(GPR_INFO,
               "  .. check top timer deadline=%" PRId64 " now=%" PRId64,
               timer_deadline.milliseconds_after_process_epoch(),
@@ -559,7 +559,7 @@ static size_t pop_timers(timer_shard* shard, grpc_core::Timestamp now,
   }
   *new_min_deadline = compute_min_deadline(shard);
   gpr_mu_unlock(&shard->mu);
-  if (GRPC_TRACE_FLAG_ENABLED(grpc_timer_check_trace)) {
+  if (false) {
     gpr_log(GPR_INFO, "  .. shard[%d] popped %" PRIdPTR,
             static_cast<int>(shard - g_shards), n);
   }
@@ -598,7 +598,7 @@ static grpc_timer_check_result run_some_expired_timers(
     gpr_mu_lock(&g_shared_mutables.mu);
     result = GRPC_TIMERS_CHECKED_AND_EMPTY;
 
-    if (GRPC_TRACE_FLAG_ENABLED(grpc_timer_check_trace)) {
+    if (false) {
       gpr_log(
           GPR_INFO, "  .. shard[%d]->min_deadline = %" PRId64,
           static_cast<int>(g_shard_queue[0] - g_shards),
@@ -617,7 +617,7 @@ static grpc_timer_check_result run_some_expired_timers(
         result = GRPC_TIMERS_FIRED;
       }
 
-      if (GRPC_TRACE_FLAG_ENABLED(grpc_timer_check_trace)) {
+      if (false) {
         gpr_log(
             GPR_INFO,
             "  .. result --> %d"
@@ -679,7 +679,7 @@ static grpc_timer_check_result timer_check(grpc_core::Timestamp* next) {
     if (next != nullptr) {
       *next = std::min(*next, min_timer);
     }
-    if (GRPC_TRACE_FLAG_ENABLED(grpc_timer_check_trace)) {
+    if (false) {
       gpr_log(GPR_INFO, "TIMER CHECK SKIP: now=%" PRId64 " min_timer=%" PRId64,
               now.milliseconds_after_process_epoch(),
               min_timer.milliseconds_after_process_epoch());
@@ -693,7 +693,7 @@ static grpc_timer_check_result timer_check(grpc_core::Timestamp* next) {
           : GRPC_ERROR_CREATE_FROM_STATIC_STRING("Shutting down timer system");
 
   // tracing
-  if (GRPC_TRACE_FLAG_ENABLED(grpc_timer_check_trace)) {
+  if (false) {
     std::string next_str;
     if (next == nullptr) {
       next_str = "NULL";
@@ -720,7 +720,7 @@ static grpc_timer_check_result timer_check(grpc_core::Timestamp* next) {
   grpc_timer_check_result r =
       run_some_expired_timers(now, next, shutdown_error);
   // tracing
-  if (GRPC_TRACE_FLAG_ENABLED(grpc_timer_check_trace)) {
+  if (false) {
     std::string next_str;
     if (next == nullptr) {
       next_str = "NULL";

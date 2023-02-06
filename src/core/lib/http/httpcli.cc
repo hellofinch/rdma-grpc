@@ -48,6 +48,8 @@
 #include "src/core/lib/slice/slice_internal.h"
 #include "src/core/lib/transport/error_utils.h"
 
+#include "src/core/lib/surface/api_trace.h"
+
 namespace grpc_core {
 
 namespace {
@@ -371,8 +373,12 @@ void HttpRequest::NextAddress(grpc_error_handle error) {
   connecting_ = true;
   own_endpoint_ = false;
   Ref().release();  // ref held by pending connect
+  
+  GRPC_API_TRACE("src/core/lib/http/httpcli.cc:NextAddress()",0, ());
+  // std::cout << "src/core/lib/http/httpcli.cc:NextAddress()"<< std::endl;
   grpc_rdma_client_connect(&connected_, &ep_, pollset_set_, channel_args_, addr,
                           deadline_);
+  
   // grpc_tcp_client_connect(&connected_, &ep_, pollset_set_, channel_args_, addr,
   //                         deadline_);
 }

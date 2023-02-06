@@ -42,23 +42,23 @@
 #include "src/core/lib/iomgr/iomgr_internal.h"
 #include "src/core/lib/iomgr/resolve_address.h"
 #include "src/core/lib/iomgr/resolve_address_posix.h"
-// #include "src/core/lib/iomgr/tcp_client.h"
-// #include "src/core/lib/iomgr/tcp_posix.h"
-// #include "src/core/lib/iomgr/tcp_server.h"
-#include "src/core/lib/iomgr/ib_client.h"
+#include "src/core/lib/iomgr/tcp_client.h"
 #include "src/core/lib/iomgr/tcp_posix.h"
-#include "src/core/lib/iomgr/ib_server.h"
+#include "src/core/lib/iomgr/tcp_server.h"
+// #include "src/core/lib/iomgr/ib_client.h"
+// #include "src/core/lib/iomgr/tcp_posix.h"
+// #include "src/core/lib/iomgr/ib_server.h"
 #include "src/core/lib/iomgr/timer.h"
 
 static const char* grpc_cfstream_env_var = "grpc_cfstream";
 static const char* grpc_cfstream_run_loop_env_var = "GRPC_CFSTREAM_RUN_LOOP";
 
-// extern grpc_tcp_server_vtable grpc_posix_tcp_server_vtable;
-// extern grpc_tcp_client_vtable grpc_posix_tcp_client_vtable;
-// extern grpc_tcp_client_vtable grpc_cfstream_client_vtable;
-extern grpc_rdma_server_vtable grpc_posix_rdma_server_vtable;
-extern grpc_rdma_client_vtable grpc_posix_rdma_client_vtable;
-extern grpc_rdma_client_vtable grpc_posix_rdma_client_vtable;
+extern grpc_tcp_server_vtable grpc_posix_tcp_server_vtable;
+extern grpc_tcp_client_vtable grpc_posix_tcp_client_vtable;
+extern grpc_tcp_client_vtable grpc_cfstream_client_vtable;
+// extern grpc_rdma_server_vtable grpc_posix_rdma_server_vtable;
+// extern grpc_rdma_client_vtable grpc_posix_rdma_client_vtable;
+// extern grpc_rdma_client_vtable grpc_posix_rdma_client_vtable;
 extern grpc_timer_vtable grpc_generic_timer_vtable;
 extern grpc_pollset_vtable grpc_posix_pollset_vtable;
 extern grpc_pollset_set_vtable grpc_posix_pollset_set_vtable;
@@ -164,32 +164,32 @@ void grpc_set_default_iomgr_platform() {
   CFStreamEnv env = ParseEnvForCFStream();
   if (!env.enable_cfstream) {
     // Use POSIX sockets for both client and server
-    // grpc_set_tcp_client_impl(&grpc_posix_tcp_client_vtable);
-    // grpc_set_tcp_server_impl(&grpc_posix_tcp_server_vtable);
-  std::cout << "src/core/lib/iomgr/iomgr_posix_cfstream.cc:grpc_set_default_iomgr_platform start set 1"<< std::endl;
-    grpc_set_rdma_client_impl(&grpc_posix_rdma_client_vtable);
-    grpc_set_rdma_server_impl(&grpc_posix_rdma_server_vtable);
-  std::endl << "src/core/lib/iomgr/iomgr_posix_cfstream.cc:grpc_set_default_iomgr_platform end set 1"<< std::endl;
+    grpc_set_tcp_client_impl(&grpc_posix_tcp_client_vtable);
+    grpc_set_tcp_server_impl(&grpc_posix_tcp_server_vtable);
+  // std::cout << "src/core/lib/iomgr/iomgr_posix_cfstream.cc:grpc_set_default_iomgr_platform start set 1"<< std::endl;
+    // grpc_set_rdma_client_impl(&grpc_posix_rdma_client_vtable);
+    // grpc_set_rdma_server_impl(&grpc_posix_rdma_server_vtable);
+  // std::cout << "src/core/lib/iomgr/iomgr_posix_cfstream.cc:grpc_set_default_iomgr_platform end set 1"<< std::endl;
     grpc_set_pollset_vtable(&grpc_posix_pollset_vtable);
     grpc_set_pollset_set_vtable(&grpc_posix_pollset_set_vtable);
     grpc_set_iomgr_platform_vtable(&vtable);
   } else if (env.enable_cfstream && !env.enable_cfstream_run_loop) {
     // Use CFStream with dispatch queue for client; use POSIX sockets for server
-    // grpc_set_tcp_client_impl(&grpc_cfstream_client_vtable);
-    // grpc_set_tcp_server_impl(&grpc_posix_tcp_server_vtable);
-  std::cout << "src/core/lib/iomgr/iomgr_posix_cfstream.cc:grpc_set_default_iomgr_platform start set 2"<< std::endl;
-    grpc_set_rdma_client_impl(&grpc_posix_rdma_client_vtable);
-    grpc_set_rdma_server_impl(&grpc_posix_rdma_server_vtable);
-  std::cout << "src/core/lib/iomgr/iomgr_posix_cfstream.cc:grpc_set_default_iomgr_platform end set 2"<< std::endl;
+    grpc_set_tcp_client_impl(&grpc_cfstream_client_vtable);
+    grpc_set_tcp_server_impl(&grpc_posix_tcp_server_vtable);
+  // std::cout << "src/core/lib/iomgr/iomgr_posix_cfstream.cc:grpc_set_default_iomgr_platform start set 2"<< std::endl;
+    // grpc_set_rdma_client_impl(&grpc_posix_rdma_client_vtable);
+    // grpc_set_rdma_server_impl(&grpc_posix_rdma_server_vtable);
+  // std::cout << "src/core/lib/iomgr/iomgr_posix_cfstream.cc:grpc_set_default_iomgr_platform end set 2"<< std::endl;
     grpc_set_pollset_vtable(&grpc_posix_pollset_vtable);
     grpc_set_pollset_set_vtable(&grpc_posix_pollset_set_vtable);
     grpc_set_iomgr_platform_vtable(&vtable);
   } else {
     // Use CFStream with CFRunLoop for client; server not supported
-    // grpc_set_tcp_client_impl(&grpc_cfstream_client_vtable);
-  std::cout << "src/core/lib/iomgr/iomgr_posix_cfstream.cc:grpc_set_default_iomgr_platform start set 3"<< std::endl;
-    grpc_set_rdma_client_impl(&grpc_cfstream_client_vtable);
-  std::endl << "src/core/lib/iomgr/iomgr_posix_cfstream.cc:grpc_set_default_iomgr_platform end set 3"<< std::endl;
+    grpc_set_tcp_client_impl(&grpc_cfstream_client_vtable);
+  // std::cout << "src/core/lib/iomgr/iomgr_posix_cfstream.cc:grpc_set_default_iomgr_platform start set 3"<< std::endl;
+    // grpc_set_rdma_client_impl(&grpc_cfstream_client_vtable);
+  // std::cout << "src/core/lib/iomgr/iomgr_posix_cfstream.cc:grpc_set_default_iomgr_platform end set 3"<< std::endl;
     grpc_set_pollset_vtable(&grpc_apple_pollset_vtable);
     grpc_set_pollset_set_vtable(&grpc_apple_pollset_set_vtable);
     grpc_set_iomgr_platform_vtable(&apple_vtable);

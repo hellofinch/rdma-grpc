@@ -1802,7 +1802,6 @@ static void perform_transport_op_locked(void* stream_op,
   grpc_transport_op* op = static_cast<grpc_transport_op*>(stream_op);
   grpc_chttp2_transport* t =
       static_cast<grpc_chttp2_transport*>(op->handler_private.extra_arg);
-
   if (op->goaway_error != GRPC_ERROR_NONE) {
     send_goaway(t, op->goaway_error);
   }
@@ -2445,6 +2444,7 @@ static grpc_error_handle try_http_parsing(grpc_chttp2_transport* t) {
 }
 
 static void read_action(void* tp, grpc_error_handle error) {
+  // std::cout << "src/core/ext/transport/chttp2/transport/chttp2_transport.cc:read_action" << std::endl;
   grpc_chttp2_transport* t = static_cast<grpc_chttp2_transport*>(tp);
   t->combiner->Run(
       GRPC_CLOSURE_INIT(&t->read_action_locked, read_action_locked, t, nullptr),
@@ -2452,6 +2452,7 @@ static void read_action(void* tp, grpc_error_handle error) {
 }
 
 static void read_action_locked(void* tp, grpc_error_handle error) {
+  // std::cout << "src/core/ext/transport/chttp2/transport/chttp2_transport.cc:read_action_locked" << std::endl;
   GPR_TIMER_SCOPE("reading_action_locked", 0);
 
   grpc_chttp2_transport* t = static_cast<grpc_chttp2_transport*>(tp);
@@ -2545,6 +2546,8 @@ static void continue_read_action_locked(grpc_chttp2_transport* t) {
   const bool urgent = t->goaway_error != GRPC_ERROR_NONE;
   GRPC_CLOSURE_INIT(&t->read_action_locked, read_action, t,
                     grpc_schedule_on_exec_ctx);
+  
+  // std::cout << "src/core/ext/transport/chttp2/transport/chttp2_transport.cc:continue_read_action_locked" << std::endl;
   grpc_endpoint_read(t->ep, &t->read_buffer, &t->read_action_locked, urgent);
   grpc_chttp2_act_on_flowctl_action(t->flow_control->MakeAction(), t, nullptr);
 }

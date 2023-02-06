@@ -93,8 +93,8 @@ typedef struct grpc_rdma_listener {
 struct grpc_rdma_server {
   gpr_refcount refs;
   /* Called whenever accept() succeeds on a server port. */
-  grpc_rdma_server_cb on_accept_cb=nullptr;
-  void *on_accept_cb_arg=nullptr;
+  grpc_rdma_server_cb on_accept_cb;
+  void *on_accept_cb_arg;
 
   gpr_mu mu;
 
@@ -133,21 +133,18 @@ struct grpc_rdma_server {
      /* channel args for this server */
   grpc_channel_args* channel_args = nullptr;
 
-// //   /* a handler for external connections, owned */
-//   grpc_core::TcpServerFdHandler* fd_handler = nullptr;
+  // //   /* a handler for external connections, owned */
+  //   grpc_core::TcpServerFdHandler* fd_handler = nullptr;
 
   /* used to create slice allocators for endpoints, owned */
   grpc_core::MemoryQuotaRefPtr memory_quota;
 };
 
 
-grpc_error_handle rdma_server_create(grpc_closure *shutdown_complete,const grpc_channel_args* args,
-                                   grpc_rdma_server **server) {
+grpc_error_handle rdma_server_create(grpc_closure *shutdown_complete,const grpc_channel_args* args,grpc_rdma_server **server) {
   // gpr_once_init(&check_init, init);
   // grpc_rdma_server *s = gpr_malloc(sizeof(grpc_rdma_server));
-  GRPC_API_TRACE("src/core/lib/iomgr/ib_server_posix.cc:rdma_server_create() begin",0, ());
   grpc_rdma_server* s = new grpc_rdma_server;
-  GRPC_API_TRACE("src/core/lib/iomgr/ib_server_posix.cc:rdma_server_create() new",0, ());
   gpr_ref_init(&s->refs, 1);
   gpr_mu_init(&s->mu);
   s->active_ports = 0;
@@ -167,12 +164,12 @@ grpc_error_handle rdma_server_create(grpc_closure *shutdown_complete,const grpc_
       grpc_core::ResourceQuotaFromChannelArgs(args)->memory_quota();
   gpr_atm_no_barrier_store(&s->next_pollset_to_assign, 0);
   *server = s;
-  GRPC_API_TRACE("src/core/lib/iomgr/ib_server_posix.cc:rdma_server_create() end",0, ());
+  // std::cout <<"src/core/lib/iomgr/ib_server_posix.cc:rdma_server_create() end" << std::endl;
   return GRPC_ERROR_NONE;
 }
 
 static void finish_shutdown(grpc_rdma_server *s) {
-    gpr_mu_lock(&s->mu);
+  gpr_mu_lock(&s->mu);
   GPR_ASSERT(s->shutdown);
   gpr_mu_unlock(&s->mu);
   if (s->shutdown_complete != NULL) {
@@ -239,7 +236,7 @@ static void rdma_server_destroy( grpc_rdma_server *s) {
 
   GPR_ASSERT(!s->shutdown);
   s->shutdown = true;
-
+  // std::cout << "rdma_server_destroy" << std::endl;
   /* shutdown all fd's */
   if (s->active_ports) {
     grpc_rdma_listener *sp;
@@ -328,8 +325,8 @@ static int on_connect_request(struct rdma_cm_id *id) {
          return -1;
     }
  
-   //register_memory(context);
-   //recv_buffer_region = gpr_malloc(INIT_RECV_BUFFER_SIZE * RDMA_POST_RECV_NUM); 
+    //register_memory(context);
+    //recv_buffer_region = gpr_malloc(INIT_RECV_BUFFER_SIZE * RDMA_POST_RECV_NUM); 
     send_buffer_region = (char*)gpr_malloc(INIT_RECV_BUFFER_SIZE); 
     
     /*if((recv_buffer_mr = ibv_reg_mr(
@@ -393,25 +390,24 @@ static int on_connect_request(struct rdma_cm_id *id) {
 
     //post_receives(context);
     for (i=0; i<RDMA_POST_RECV_NUM; i++) {
-	node=rdma_mm_pop(manager);
-        memset(&(wr[i]),0,sizeof(wr[i]));
-        uintptr_addr = (uintptr_t)&node->context.msg;
-        wr[i].wr_id = uintptr_addr;
-        wr[i].next = &(wr[i+1]);
-        if ( i == RDMA_POST_RECV_NUM - 1) {
-             wr[i].next = NULL;
-        }
-        wr[i].sg_list = &(sge[i]);
-        wr[i].num_sge = 1;
+      node=rdma_mm_pop(manager);
+      memset(&(wr[i]),0,sizeof(wr[i]));
+      uintptr_addr = (uintptr_t)&node->context.msg;
+      wr[i].wr_id = uintptr_addr;
+      wr[i].next = &(wr[i+1]);
+      if ( i == RDMA_POST_RECV_NUM - 1) {
+            wr[i].next = NULL;
+      }
+      wr[i].sg_list = &(sge[i]);
+      wr[i].num_sge = 1;
 
-        sge[i].addr = uintptr_addr;
-        sge[i].length = sizeof(rdma_message);
-        sge[i].lkey = node->mr->lkey;
-
+      sge[i].addr = uintptr_addr;
+      sge[i].length = sizeof(rdma_message);
+      sge[i].lkey = node->mr->lkey;
     }
     //gpr_log(GPR_DEBUG,"%d memory nodes left in the manager",manager->node_count);
     if ((ibv_post_recv(context->qp, &(wr[0]), &bad_wr)) != 0){
-            gpr_log(GPR_ERROR, "SERVER: ibv_post_recv() failed: %s",strerror(errno));
+      gpr_log(GPR_ERROR, "SERVER: ibv_post_recv() failed: %s",strerror(errno));
             return -1;
     }
 
@@ -433,10 +429,9 @@ static int on_connect_request(struct rdma_cm_id *id) {
 
     memset(&cm_params, 0, sizeof(cm_params));
     if ((rdma_accept(id, &cm_params)) != 0) {
-	gpr_log(GPR_ERROR, "CLIENT: rdma_accept() failed: %s",strerror(errno));
-	return -1;
+      gpr_log(GPR_ERROR, "CLIENT: rdma_accept() failed: %s",strerror(errno));
+      return -1;
     }
-
 
     return 0;
 }
@@ -452,73 +447,98 @@ static int on_disconnect(struct rdma_cm_id *id) {
     return 0;
 }
 
-char *my_grpc_sockaddr_to_uri_unix_if_possible(const struct sockaddr *addr) {
-  if (addr->sa_family != AF_UNIX) {
-    return NULL;
-  }
-  const auto* unix_addr = reinterpret_cast<const struct sockaddr_un*>(addr);
-  return (char*)absl::StrCat("unix:", unix_addr->sun_path).c_str();
+// int join_host_port(char **out, const char *host, int port) {
+//   if (host[0] != '[' && strchr(host, ':') != NULL) {
+//     /* IPv6 literals must be enclosed in brackets. */
+//     return gpr_asprintf(out, "[%s]:%d", host, port);
+//   } else {
+//     /* Ordinary non-bracketed host:port. */
+//     return gpr_asprintf(out, "%s:%d", host, port);
+//   }
+// }
+
+std::string my_grpc_sockaddr_to_uri_unix_if_possible(const struct sockaddr *addr) {
+  // const auto* unix_addr = reinterpret_cast<const struct sockaddr_un*>(addr);
+  char ntop_buf[INET6_ADDRSTRLEN];
+  const void *ip = NULL;
+  const struct sockaddr_in *addr4 = (const struct sockaddr_in *)addr;
+  ip = &addr4->sin_addr;
+  int port = ntohs(addr4->sin_port);
+  inet_ntop(addr->sa_family, (void *)ip, ntop_buf, sizeof(ntop_buf));
+  // join_host_port(out, ntop_buf, port);
+  // if (addr->sa_family != AF_UNIX) {
+  //   return NULL;
+  // }
+  return absl::StrCat("ipv4:", ntop_buf,":",port);
 }
 
 /* event manager callback when reads are ready */
 //static void on_read(grpc_exec_ctx *exec_ctx, void *arg, grpc_error *err) {
 static int on_connection( grpc_rdma_listener *sp,void *ctx) {
   struct connect_context *context = (struct connect_context *)ctx;
-
-  grpc_rdma_server_acceptor acceptor = {sp->server, sp->port_index,sp->fd_index}; 
   grpc_pollset *read_notifier_pollset = NULL;
   struct sockaddr *addr;
-  char *addr_str;
-  char *name;
+  // char *addr_str;
+  // char *name;
 
   read_notifier_pollset =
       (*(sp->server->pollsets))[static_cast<size_t>(gpr_atm_no_barrier_fetch_add(
                                &sp->server->next_pollset_to_assign, 1)) %
                            sp->server->pollsets->size()];
    
-    addr = rdma_get_peer_addr(context->id);
-    // addr_str = grpc_sockaddr_to_uri((struct sockaddr *)addr);
-    addr_str = my_grpc_sockaddr_to_uri_unix_if_possible(addr);
-    gpr_asprintf(&name, "tcp-server-connection:%s", addr_str);
-    /*
-    if (grpc_tcp_trace) {
-      gpr_log(GPR_DEBUG, "SERVER_CONNECT: incoming connection: %s", addr_str);
-    }
-*/
+  addr = rdma_get_peer_addr(context->id);
+  // addr_str = grpc_sockaddr_to_uri((struct sockaddr *)addr);
+  std::string addr_str = my_grpc_sockaddr_to_uri_unix_if_possible(addr);
+  // gpr_asprintf(&name, "tcp-server-connection:%s", addr_str);
+  std::string name=absl::StrCat("tcp-server-connection:", addr_str);
+  gpr_log(GPR_INFO, "SERVER_CONNECT: incoming connection: %s", addr_str.c_str());
+  // std::cout << "SERVER_CONNECT: incoming connection: " << name << std::endl;
+  
+  if (read_notifier_pollset == NULL) {
+    gpr_log(GPR_INFO, "Read notifier pollset is not set on the fd");
+    //goto error;
+    return -1;
+  }
 
+  context->sendfdobj = grpc_fd_create(context->sendfd, name.c_str(),true);
+  context->recvfdobj = grpc_fd_create(context->recvfd, name.c_str(),true);
+  grpc_pollset_add_fd(read_notifier_pollset, context->sendfdobj);
+  grpc_pollset_add_fd(read_notifier_pollset, context->recvfdobj);
 
-    if (read_notifier_pollset == NULL) {
-      gpr_log(GPR_ERROR, "Read notifier pollset is not set on the fd");
-      //goto error;
-      return -1;
-    }
+  // grpc_rdma_server_acceptor acceptor = {sp->server, sp->port_index,sp->fd_index};
+  
+  grpc_rdma_server_acceptor* acceptor = static_cast<grpc_rdma_server_acceptor*>(gpr_malloc(sizeof(*acceptor)));
+  acceptor->from_server = sp->server;
+  acceptor->port_index = sp->port_index;
+  acceptor->fd_index = sp->fd_index;
+  acceptor->external_connection=false;
+  // acceptor.external_connection=false;
 
-    context->sendfdobj = grpc_fd_create(context->sendfd, name,true);
-    context->recvfdobj = grpc_fd_create(context->recvfd, name,true);
-    grpc_pollset_add_fd(read_notifier_pollset, context->sendfdobj);
-    grpc_pollset_add_fd(read_notifier_pollset, context->recvfdobj);
+  context->ep = grpc_rdma_create(context, addr_str.c_str());
+  //grpc_rdma_create(fdobj, GRPC_TCP_DEFAULT_READ_SLICE_SIZE, addr_str), 
+  sp->server->on_accept_cb(sp->server->on_accept_cb_arg,context->ep,read_notifier_pollset, acceptor);
+  // sp->server->on_accept_cb(sp->server->on_accept_cb_arg,context->ep,read_notifier_pollset, &acceptor);
+  // std::cout << "src/core/lib/iomgr/ib_server_posix.cc:on_connection " << &acceptor << std::endl;
+  // sp->server->on_accept_cb(sp->server->on_accept_cb_arg,context->ep,read_notifier_pollset, acceptor);
+  // sp->server->on_accept_cb(
+  //       sp->server->on_accept_cb_arg,
+  //       grpc_tcp_create(fdobj, sp->server->channel_args, addr_str),
+  //       read_notifier_pollset, acceptor);
 
-    context->ep = grpc_rdma_create(context, addr_str);
-
-    //grpc_rdma_create(fdobj, GRPC_TCP_DEFAULT_READ_SLICE_SIZE, addr_str), 
-    sp->server->on_accept_cb(
-        sp->server->on_accept_cb_arg,
-	context->ep,
-        read_notifier_pollset, &acceptor);
-
-    gpr_free(name);
-    gpr_free(addr_str);
+  // gpr_free(name);
+  // gpr_free(addr_str);
   //}
 
   //GPR_UNREACHABLE_CODE(return );
 
-//error:
- return 0;
- }
+  //error:
+  return 0;
+}
 
 
-static void grpc_rdma_server_on_event(void *arg,grpc_error_handle err) {
-    grpc_rdma_listener *sp = static_cast<grpc_rdma_listener*>(arg);
+static void grpc_rdma_server_on_event(void* arg,grpc_error_handle err) {
+    // grpc_rdma_listener *sp = static_cast<grpc_rdma_listener*>(arg);
+    grpc_rdma_listener* sp = (grpc_rdma_listener*)arg;
     struct rdma_event_channel *ec = sp->ec;
     struct rdma_cm_event *event = nullptr;
     struct rdma_cm_id *id = nullptr;
@@ -526,7 +546,7 @@ static void grpc_rdma_server_on_event(void *arg,grpc_error_handle err) {
     int ret = 0;
 
     if (err != GRPC_ERROR_NONE ) {
-	goto error;
+	        goto error;
     } 
 
     grpc_fd_notify_on_read(sp->emfd, &sp->read_closure); //poll again
@@ -538,26 +558,31 @@ static void grpc_rdma_server_on_event(void *arg,grpc_error_handle err) {
     id = event->id;
     switch (event->event) {
         case RDMA_CM_EVENT_CONNECT_REQUEST:
-	    gpr_log(GPR_DEBUG, "Server: on_event RDMA_CM_EVENT_CONNECT_REQUEST");
+	          gpr_log(GPR_INFO, "Server: on_event RDMA_CM_EVENT_CONNECT_REQUEST");
+            // std::cout << "Server: on_event RDMA_CM_EVENT_CONNECT_REQUEST" << std::endl;
             ret = on_connect_request(event->id);
             rdma_ack_cm_event(event);
             break;
         case RDMA_CM_EVENT_ESTABLISHED:
-	    gpr_log(GPR_DEBUG, "Server: on_event RDMA_CM_EVENT_ESTABLISHED");
+	          gpr_log(GPR_INFO, "Server: on_event RDMA_CM_EVENT_ESTABLISHED");
+            // std::cout << "Server: on_event RDMA_CM_EVENT_ESTABLISHED" << std::endl;
             ret = on_connection(sp, event->id->context);
             rdma_ack_cm_event(event);
             break;
         case RDMA_CM_EVENT_DISCONNECTED:
-	    gpr_log(GPR_DEBUG, "Server: on_event RDMA_CM_EVENT_DISCONNECTED");
             rdma_ack_cm_event(event);
             ret = on_disconnect(id);
+	          gpr_log(GPR_INFO, "Server: on_event RDMA_CM_EVENT_DISCONNECTED");
+            // std::cout << "Server: on_event RDMA_CM_EVENT_DISCONNECTED" << std::endl;
             break;
         case RDMA_CM_EVENT_TIMEWAIT_EXIT:
-	    gpr_log(GPR_DEBUG,"Server: TIMEWAIT_EXIT");
-	    ret=0;
+	          gpr_log(GPR_INFO,"Server: TIMEWAIT_EXIT");
+            // std::cout << "Server: on_event TIMEWAIT_EXIT" << std::endl;
+	          ret=0;
             break;
         default:
-	    gpr_log(GPR_ERROR, "Server: on_event Unknow RDMA_CM_EVENT:%d", event->event);
+	          gpr_log(GPR_ERROR, "Server: on_event Unknow RDMA_CM_EVENT:%d", event->event);
+            // std::cout << "Server: on_event Unknow RDMA_CM_EVENT" << std::endl;
             ret = -1;
             break;
     }
@@ -756,7 +781,7 @@ struct sockaddr *grpc_rdma_server_port_addr(grpc_rdma_server *s, unsigned port_i
   }
 }
 
-void rdma_server_start(grpc_rdma_server *s,
+static void rdma_server_start(grpc_rdma_server *s,
                            const std::vector<grpc_pollset*>* pollsets,
                            grpc_rdma_server_cb on_accept_cb,
                            void *on_accept_cb_arg) {
@@ -773,11 +798,11 @@ void rdma_server_start(grpc_rdma_server *s,
   while (sp != nullptr) {
      for (i = 0; i < pollsets->size(); i++) {
         grpc_pollset_add_fd((*pollsets)[i], sp->emfd);
-      }
-      GRPC_CLOSURE_INIT(&sp->read_closure, grpc_rdma_server_on_event, sp,grpc_schedule_on_exec_ctx);
-      grpc_fd_notify_on_read(sp->emfd, &sp->read_closure);
-      s->active_ports++;
-      sp = sp->next;
+    }
+    GRPC_CLOSURE_INIT(&sp->read_closure, grpc_rdma_server_on_event, sp,grpc_schedule_on_exec_ctx);
+    grpc_fd_notify_on_read(sp->emfd, &sp->read_closure);
+    s->active_ports++;
+    sp = sp->next;
   }
   gpr_mu_unlock(&s->mu);
 }

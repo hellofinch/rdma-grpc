@@ -35,12 +35,16 @@ grpc_error_handle grpc_rdma_server_create(grpc_closure* shutdown_complete,
 void grpc_rdma_server_start(grpc_rdma_server* server,
                            const std::vector<grpc_pollset*>* pollsets,
                            grpc_rdma_server_cb on_accept_cb, void* cb_arg) {
+  GRPC_API_TRACE("src/core/lib/iomgr/ib_server.cc:grpc_rdma_server_start()",0, ());
+  // std::cout << "src/core/lib/iomgr/ib_server.cc:grpc_rdma_server_start()" << std::endl;
   grpc_rdma_server_impl->start(server, pollsets, on_accept_cb, cb_arg);
 }
 
 grpc_error_handle grpc_rdma_server_add_port(grpc_rdma_server* s,
                                            const grpc_resolved_address* addr,
                                            int* out_port) {
+  GRPC_API_TRACE("src/core/lib/iomgr/ib_server.cc:grpc_rdma_server_add_port()",0, ());
+  // std::cout << "src/core/lib/iomgr/ib_server.cc:grpc_rdma_server_add_port()" << std::endl;
   return grpc_rdma_server_impl->add_port(s, addr, out_port);
 }
 
@@ -51,28 +55,40 @@ grpc_error_handle grpc_rdma_server_add_port(grpc_rdma_server* s,
 
 unsigned grpc_rdma_server_port_fd_count(grpc_rdma_server* s,
                                        unsigned port_index) {
+  GRPC_API_TRACE("src/core/lib/iomgr/ib_server.cc:grpc_rdma_server_port_fd_count()",0, ());
+  // std::cout << "src/core/lib/iomgr/ib_server.cc:grpc_rdma_server_port_fd_count()" << std::endl;
   return grpc_rdma_server_impl->port_fd_count(s, port_index);
 }
 
 int grpc_rdma_server_port_fd(grpc_rdma_server* s, unsigned port_index,
                             unsigned fd_index) {
+  GRPC_API_TRACE("src/core/lib/iomgr/ib_server.cc:grpc_rdma_server_port_fd()",0, ());
+  // std::cout << "src/core/lib/iomgr/ib_server.cc:grpc_rdma_server_port_fd()" << std::endl;
   return grpc_rdma_server_impl->port_fd(s, port_index, fd_index);
 }
 
 grpc_rdma_server* grpc_rdma_server_ref(grpc_rdma_server* s) {
+  GRPC_API_TRACE("src/core/lib/iomgr/ib_server.cc:grpc_rdma_server_ref()",0, ());
+  // std::cout << "src/core/lib/iomgr/ib_server.cc:grpc_rdma_server_ref()" << std::endl;
   return grpc_rdma_server_impl->ref(s);
 }
 
 void grpc_rdma_server_shutdown_starting_add(grpc_rdma_server* s,
                                            grpc_closure* shutdown_starting) {
+  GRPC_API_TRACE("src/core/lib/iomgr/ib_server.cc:grpc_rdma_server_shutdown_starting_add()",0, ());
+  // std::cout << "src/core/lib/iomgr/ib_server.cc:grpc_rdma_server_shutdown_starting_add()" << std::endl;
   grpc_rdma_server_impl->shutdown_starting_add(s, shutdown_starting);
 }
 
 void grpc_rdma_server_unref(grpc_rdma_server* s) {
+  GRPC_API_TRACE("src/core/lib/iomgr/ib_server.cc:grpc_rdma_server_unref()",0, ());
+  // std::cout << "src/core/lib/iomgr/ib_server.cc:grpc_rdma_server_unref()" << std::endl;
   grpc_rdma_server_impl->unref(s);
 }
 
 void grpc_rdma_server_shutdown_listeners(grpc_rdma_server* s) {
+  GRPC_API_TRACE("src/core/lib/iomgr/ib_server.cc:grpc_rdma_server_shutdown_listeners()",0, ());
+  // std::cout << "src/core/lib/iomgr/ib_server.cc:grpc_rdma_server_shutdown_listeners()" << std::endl;
   grpc_rdma_server_impl->shutdown_listeners(s);
 }
 
