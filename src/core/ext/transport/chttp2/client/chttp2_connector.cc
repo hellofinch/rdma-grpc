@@ -55,9 +55,9 @@
 #include <fcntl.h>
 
 // #include "src/core/lib/iomgr/tcp_client_posix.h"
-#include "src/core/lib/iomgr/ib_client_posix.h"
+// #include "src/core/lib/iomgr/ib_client_posix.h"
 // #include "src/core/lib/iomgr/tcp_posix.h"
-#include "src/core/lib/iomgr/rdma_cm.h"
+// #include "src/core/lib/iomgr/rdma_cm.h"
 
 #endif  // GPR_SUPPORT_CHANNELS_FROM_FD
 

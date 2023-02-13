@@ -56,7 +56,8 @@ class ReadAheadHandshaker : public Handshaker {
   ~ReadAheadHandshaker() override {}
   const char* name() const override { return "read_ahead"; }
   void Shutdown(grpc_error_handle /*why*/) override {}
-  void DoHandshake(grpc_tcp_server_acceptor* /*acceptor*/,
+  // void DoHandshake(grpc_tcp_server_acceptor* /*acceptor*/,
+  void DoHandshake(grpc_rdma_server_acceptor* /*acceptor*/,
                    grpc_closure* on_handshake_done,
                    HandshakerArgs* args) override {
     grpc_endpoint_read(args->endpoint, args->read_buffer, on_handshake_done,

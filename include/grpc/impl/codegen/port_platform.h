@@ -156,7 +156,7 @@
 #define GPR_POSIX_TIME 1
 #define GPR_HAS_PTHREAD_H 1
 #define GPR_GETPID_IN_UNISTD_H 1
-// #define GPR_SUPPORT_CHANNELS_FROM_FD 1
+#define GPR_SUPPORT_CHANNELS_FROM_FD 1
 #elif defined(__linux__)
 #define GPR_PLATFORM_STRING "linux"
 #ifndef _BSD_SOURCE
@@ -173,7 +173,7 @@
 #define GPR_GCC_ATOMIC 1
 #define GPR_LINUX 1
 #define GPR_LINUX_LOG
-// #define GPR_SUPPORT_CHANNELS_FROM_FD 1
+#define GPR_SUPPORT_CHANNELS_FROM_FD 1
 #define GPR_LINUX_ENV 1
 #define GPR_POSIX_TMPFILE 1
 #define GPR_POSIX_STAT 1
@@ -254,7 +254,7 @@
 #define GPR_HAS_PTHREAD_H 1
 #define GPR_GETPID_IN_UNISTD_H 1
 #ifndef GRPC_CFSTREAM
-// #define GPR_SUPPORT_CHANNELS_FROM_FD 1
+#define GPR_SUPPORT_CHANNELS_FROM_FD 1
 #endif
 #ifdef _LP64
 #define GPR_ARCH_64 1
@@ -279,7 +279,7 @@
 #define GPR_POSIX_TIME 1
 #define GPR_HAS_PTHREAD_H 1
 #define GPR_GETPID_IN_UNISTD_H 1
-// #define GPR_SUPPORT_CHANNELS_FROM_FD 1
+#define GPR_SUPPORT_CHANNELS_FROM_FD 1
 #ifdef _LP64
 #define GPR_ARCH_64 1
 #else /* _LP64 */
@@ -303,7 +303,7 @@
 #define GPR_POSIX_TIME 1
 #define GPR_HAS_PTHREAD_H 1
 #define GPR_GETPID_IN_UNISTD_H 1
-// #define GPR_SUPPORT_CHANNELS_FROM_FD 1
+#define GPR_SUPPORT_CHANNELS_FROM_FD 1
 #ifdef _LP64
 #define GPR_ARCH_64 1
 #else /* _LP64 */

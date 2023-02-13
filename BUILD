@@ -1996,6 +1996,12 @@ grpc_cc_library(
         "src/core/lib/iomgr/event_engine/timer.cc",
     ],
     hdrs = [
+        
+        "src/core/lib/iomgr/rdma_memory_management.h",
+        "src/core/lib/iomgr/rdma_utils_posix.h",
+        "src/core/lib/iomgr/rdma_cm.h",
+        "src/core/lib/iomgr/ib_client.h",
+        "src/core/lib/iomgr/ib_server.h",
         "src/core/lib/transport/error_utils.h",
         "src/core/lib/transport/http2_errors.h",
         "src/core/lib/address_utils/parse_address.h",
