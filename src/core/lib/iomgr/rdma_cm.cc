@@ -49,15 +49,18 @@ int grpc_rdma_trace = 0;
 
 typedef struct {
   grpc_endpoint base;
-  connect_context* content;
+  connect_context* content; //代替了grpc_fd em_fd的位置
   int fd;
   msg_iovlen_type iov_size; /* Number of slices to allocate per read attempt */
   size_t slice_size;
   gpr_refcount refcount;
 
-  gpr_slice_buffer *incoming_buffer;
-  gpr_slice_buffer temp_buffer;
-  gpr_slice_buffer *outgoing_buffer;
+  // gpr_slice_buffer *incoming_buffer;
+  // gpr_slice_buffer temp_buffer;
+  // gpr_slice_buffer *outgoing_buffer;
+  grpc_slice_buffer *incoming_buffer;
+  grpc_slice_buffer temp_buffer; //代替了last_read_buffer的位置
+  grpc_slice_buffer *outgoing_buffer;
   size_t outgoing_length;
   /** slice within outgoing_buffer to write next */
   size_t outgoing_slice_idx;
@@ -85,8 +88,11 @@ static void rdma_handle_write(void *arg /* grpc_rdma */,
 static void rdma_on_send_complete(grpc_rdma *rdma,grpc_error_handle error);
 static void rdma_sentence_death(grpc_rdma*);
 static bool rdma_flush(grpc_rdma *rdma, grpc_error_handle *error) ;
+/* Might be called multiple times */
+
 static void rdma_shutdown(grpc_endpoint *ep,grpc_error_handle /*error*/) {
   grpc_rdma *rdma = (grpc_rdma *)ep;
+  // std::cout << "src/core/lib/iomgr/rdma_cm.cc:rdma_shutdown() front" << std::endl;
   if(rdma->dead) return;
   gpr_log(GPR_INFO,"DESTROY:RDMA_CM_ID=%p",rdma->content->id);
   rdma_disconnect(rdma->content->id);
@@ -95,11 +101,13 @@ static void rdma_shutdown(grpc_endpoint *ep,grpc_error_handle /*error*/) {
   grpc_fd_shutdown(rdma->content->recvfdobj,GRPC_ERROR_CREATE_FROM_STATIC_STRING("rdma_shutdown recv destroyed"));
   rdma->msg_pending=false;
   gpr_log(GPR_INFO,"ENDPOINT:FD CLOSED");
+  // std::cout << "src/core/lib/iomgr/rdma_cm.cc:rdma_shutdown() back" << std::endl;
   //grpc_exec_ctx_flush(exec_ctx);
 }
 static void rdma_free(grpc_rdma *rdma) {
   // gpr_free(rdma->peer_string);
-  gpr_slice_buffer_reset_and_unref(&rdma->temp_buffer);
+  // gpr_slice_buffer_reset_and_unref(&rdma->temp_buffer);
+  grpc_slice_buffer_reset_and_unref_internal(&rdma->temp_buffer);
   grpc_closure *clicb=rdma->content->closure;
   rdma_ctx_unref(rdma->content);
   if(clicb){
@@ -152,24 +160,28 @@ static void rdma_destroy(grpc_endpoint *ep) {
 }
 static void readfd_notify(grpc_rdma *rdma){
   if(rdma->rflag) return;
+  // std::cout << "readfd_notify" << std::endl;
   gpr_mu_lock(&rdma->mu_rflag);
   grpc_fd_notify_on_read(rdma->content->recvfdobj, &rdma->read_closure);
   rdma->rflag=true;
   gpr_mu_unlock(&rdma->mu_rflag);
 }
 static void readfd_notified(grpc_rdma *rdma){
+  // std::cout << "readfd_notified" << std::endl;
   gpr_mu_lock(&rdma->mu_rflag);
   rdma->rflag=false;
   gpr_mu_unlock(&rdma->mu_rflag);
 }
 static void writefd_notify(grpc_rdma *rdma){
   if(rdma->wflag) return;
+  // std::cout << "writefd_notify" << std::endl;
   gpr_mu_lock(&rdma->mu_wflag);
   grpc_fd_notify_on_read(rdma->content->sendfdobj, &rdma->write_closure);
   rdma->wflag=true;
   gpr_mu_unlock(&rdma->mu_wflag);
 }
 static void writefd_notified(grpc_rdma *rdma){
+  // std::cout << "writefd_notified" << std::endl;
   gpr_mu_lock(&rdma->mu_wflag);
   rdma->wflag=false;
   gpr_mu_unlock(&rdma->mu_wflag);
@@ -179,6 +191,7 @@ static void call_read_cb(grpc_rdma *rdma,
   grpc_closure *cb = rdma->read_cb;
   if(!cb) return;
   gpr_log(GPR_INFO,"Called_READCB");
+  // std::cout << "Called_READCB" << std::endl;
   if (grpc_rdma_trace) {
     size_t i;
     gpr_log(GPR_INFO, "read: error=%s", grpc_error_std_string(error).c_str());
@@ -202,6 +215,7 @@ static void* rdma_continue_read(grpc_rdma *rdma, struct ibv_wc *wc) {
   rdma_message* msg=(rdma_message*)wc->wr_id;
   //char *buffer=msg->msg_content;
   gpr_log(GPR_INFO,"Continue Read,Get a slice");
+  // std::cout << "rdma_continue_read" << std::endl;
   // GPR_TIMER_BEGIN("rdma_continue_read", 0);
   gpr_log(GPR_INFO,"A Message of %d Bytes Received",wc->byte_len);
   if(msg->msg_info!=MSGINFO_MESSAGE){
@@ -219,9 +233,8 @@ static void* rdma_continue_read(grpc_rdma *rdma, struct ibv_wc *wc) {
 	  gpr_log(GPR_INFO,"A Message %d",(int)msg->msg_len);//qazwsx
 	  if(rdma->incoming_buffer==NULL) 
 		  rdma->incoming_buffer=&rdma->temp_buffer;
-	  gpr_slice_buffer_add_indexed(rdma->incoming_buffer,
-                                       rdma_mm_get_slice(msg));
-          rdma_mem_node* node=rdma_mm_pop(rdma->content->manager);
+	  gpr_slice_buffer_add_indexed(rdma->incoming_buffer, rdma_mm_get_slice(msg));
+    rdma_mem_node* node=rdma_mm_pop(rdma->content->manager);
     gpr_log(GPR_INFO,"MR_ADDR=%p",((rdma_mem_node*)msg)->mr);
 	  if(!node->mr){
 	    node->mr=ibv_reg_mr(
@@ -230,17 +243,18 @@ static void* rdma_continue_read(grpc_rdma *rdma, struct ibv_wc *wc) {
 				sizeof(rdma_memory_region),
 				IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE
 	    );
-            if(!node->mr) gpr_log(GPR_ERROR,"reg_mr failed:%s",strerror(errno));
+      if(!node->mr) gpr_log(GPR_ERROR,"reg_mr failed:%s",strerror(errno));
 	  }
-          rdma_post_recv(rdma->content->id,
-			  &node->context.msg,
-			  &node->context.msg,
-			  INIT_RECV_BUFFER_SIZE,
-			  node->mr);
-          return((void*)msg);
+    rdma_post_recv(rdma->content->id,
+    &node->context.msg,
+    &node->context.msg,
+    INIT_RECV_BUFFER_SIZE,
+    node->mr);
+    return((void*)msg);
   }
 }
 static void rdma_clean_failed_wr(grpc_rdma *rdma, struct ibv_wc *wc){
+  // std::cout << "rdma_clean_failed_wr" << std::endl;
 	rdma_mem_node* msg=(rdma_mem_node*)wc->wr_id;
 	if(msg) rdma_mm_push(msg);
 }
@@ -261,7 +275,7 @@ static void rdma_handle_read(void *arg /* grpc_rdma */,
   readfd_notified(rdma);
   if(rdma->dead) readerr=grpc_error_set_str(error, GRPC_ERROR_STR_DESCRIPTION, "EOF");
   if(readerr==GRPC_ERROR_NONE) {
-          void *ctx;
+    void *ctx;
 	  unsigned events_completed=0;
 	  int get_cqe_result=ibv_get_cq_event(rdma->content->recv_comp_channel,&cq,&ctx);
 	  if(get_cqe_result!=0){
@@ -284,17 +298,20 @@ static void rdma_handle_read(void *arg /* grpc_rdma */,
 				  } 
 			  }else{
 				  gpr_log(GPR_INFO,"An operation failed. OPCODE=%d status=%d wrid=%d",wc.opcode,wc.status,(int)wc.wr_id);
-				  gpr_slice_buffer_reset_and_unref(rdma->incoming_buffer);
+				  // gpr_slice_buffer_reset_and_unref(rdma->incoming_buffer);
+				  // gpr_slice_buffer_reset_and_unref(rdma->incoming_buffer);
+				  grpc_slice_buffer_reset_and_unref_internal(rdma->incoming_buffer);
+				  // grpc_slice_buffer_reset_and_unref_internal(&rdma->temp_buffer);
 				  rdma_clean_failed_wr(rdma,&wc);
 				  if(!readerr) readerr=GRPC_ERROR_CREATE_FROM_STATIC_STRING("Read Failed");
 			  }
 		  }
 		  ibv_ack_cq_events(cq,events_completed);
 
-	 		  if(0!=ibv_req_notify_cq(cq,0)){
-			  gpr_log(GPR_ERROR,"Failed to require notifications.");
-			  if(readerr) readerr=grpc_error_set_str(error, GRPC_ERROR_STR_DESCRIPTION, "Require notification failed");
-                          else readerr=GRPC_ERROR_CREATE_FROM_STATIC_STRING("Require notification failed");
+      if(0!=ibv_req_notify_cq(cq,0)){
+      gpr_log(GPR_ERROR,"Failed to require notifications.");
+      if(readerr) readerr=grpc_error_set_str(error, GRPC_ERROR_STR_DESCRIPTION, "Require notification failed");
+                        else readerr=GRPC_ERROR_CREATE_FROM_STATIC_STRING("Require notification failed");
 		  }
 	  }
   }else{
@@ -342,18 +359,20 @@ static void rdma_handle_read(void *arg /* grpc_rdma */,
   }
 }
 
-static void rdma_read(grpc_endpoint *ep,
-                     gpr_slice_buffer *incoming_buffer, grpc_closure *cb, bool urgent) {
+// static void rdma_read(grpc_endpoint *ep, gpr_slice_buffer *incoming_buffer, grpc_closure *cb, bool urgent) {
+static void rdma_read(grpc_endpoint *ep, grpc_slice_buffer *incoming_buffer, grpc_closure *cb, bool urgent) {
   gpr_log(GPR_INFO,"RDMA_READ CALLED");
-  // std::cout << "RDMA_READ CALLED" << std::endl;
+  std::cout << "RDMA_READ CALLED" << std::endl;
   grpc_rdma *rdma = (grpc_rdma *)ep;
   //GPR_ASSERT(rdma->read_cb == NULL);
   rdma->read_cb = cb;
-  gpr_slice_buffer_reset_and_unref(incoming_buffer);
-  if(rdma->incoming_buffer==&rdma->temp_buffer){
-        gpr_slice_buffer_swap(rdma->incoming_buffer,incoming_buffer);
-        rdma->incoming_buffer=NULL;
-        call_read_cb(rdma,GRPC_ERROR_NONE);
+  // gpr_slice_buffer_reset_and_unref(incoming_buffer);
+  grpc_slice_buffer_reset_and_unref_internal(incoming_buffer);
+  if(rdma->incoming_buffer==&rdma->temp_buffer){ //判断是不是第一次读
+    // gpr_slice_buffer_swap(rdma->incoming_buffer,incoming_buffer);
+    grpc_slice_buffer_swap(incoming_buffer, rdma->incoming_buffer);
+    rdma->incoming_buffer=NULL;
+    call_read_cb(rdma,GRPC_ERROR_NONE);
   }else{
   	rdma->incoming_buffer = incoming_buffer;
   	RDMA_REF(rdma, "read");
@@ -363,6 +382,7 @@ static void rdma_read(grpc_endpoint *ep,
 static void rdma_on_send_complete(grpc_rdma *rdma,grpc_error_handle error){
 	if(rdma->write_cb==NULL) return;
 	gpr_log(GPR_INFO,"CALLED WRITE_CB");
+  std::cout << "CALLED WRITE_CB" << std::endl;
 	rdma->outgoing_slice_idx=rdma->outgoing_byte_idx=0;
 	// grpc_exec_ctx_sched(exec_ctx, rdma->write_cb, error, NULL);
   grpc_core::ExecCtx::Run(DEBUG_LOCATION, rdma->write_cb,error);
@@ -392,6 +412,7 @@ static bool rdma_flush(grpc_rdma *rdma, grpc_error_handle *error) {
   rdma_message *msg=(rdma_message*)rdma->content->send_buffer;
   char* outmemory_now=msg->msg_content;
   size_t slicelength=0,thislength=0,restlength=RDMA_MSG_CONTENT_SIZE;
+  // std::cout << "rdma->outgoing_buffer->count: " << rdma->outgoing_buffer->count << std::endl;
   for(;unwind_slice_idx<rdma->outgoing_buffer->count;++unwind_slice_idx){
 	  slicelength=GPR_SLICE_LENGTH(rdma->outgoing_buffer->slices[unwind_slice_idx])-unwind_byte_idx;
 	  thislength=MIN_NUM(slicelength,restlength);
@@ -399,7 +420,7 @@ static bool rdma_flush(grpc_rdma *rdma, grpc_error_handle *error) {
 			  GPR_SLICE_START_PTR(rdma->outgoing_buffer->slices[unwind_slice_idx])+unwind_byte_idx,
 			  thislength);
 	  outmemory_now+=thislength;
-          sending_length+=thislength;
+    sending_length+=thislength;
 	  restlength-=thislength;
 	  if(thislength<slicelength) break;
 	  unwind_byte_idx=0;
@@ -519,10 +540,10 @@ static void rdma_handle_write(void *arg /* grpc_rdma */,
   // std::cout << "rdma_handle_write completed" << std::endl;
 }
 
-static void rdma_write(grpc_endpoint *ep,
-                      gpr_slice_buffer *buf, grpc_closure *cb,void* /*arg*/) {
+// static void rdma_write(grpc_endpoint *ep, gpr_slice_buffer *buf, grpc_closure *cb,void* /*arg*/) {
+static void rdma_write(grpc_endpoint *ep, grpc_slice_buffer *buf, grpc_closure *cb,void* /*arg*/) {
   gpr_log(GPR_INFO,"RDMA_WRITE_CALLED");
-  // std::cout << "RDMA_WRITE_CALLED" << std::endl;
+  std::cout << "RDMA_WRITE_CALLED" << std::endl;
   grpc_rdma *rdma = (grpc_rdma *)ep;
   grpc_error_handle error = GRPC_ERROR_NONE;
 
@@ -571,6 +592,7 @@ static void rdma_write(grpc_endpoint *ep,
 
 static void rdma_add_to_pollset(grpc_endpoint *ep,
                                grpc_pollset *pollset) {
+  // std::cout << "rdma_add_to_pollset" << std::endl;
   grpc_rdma *rdma = (grpc_rdma *)ep;
   grpc_pollset_add_fd(pollset, rdma->content->recvfdobj);
   grpc_pollset_add_fd(pollset, rdma->content->sendfdobj);
@@ -578,33 +600,39 @@ static void rdma_add_to_pollset(grpc_endpoint *ep,
 
 static void rdma_add_to_pollset_set(grpc_endpoint *ep,
                                    grpc_pollset_set *pollset_set) {
+  // std::cout << "rdma_add_to_pollset_set" << std::endl;
   grpc_rdma *rdma = (grpc_rdma *)ep;
   grpc_pollset_set_add_fd(pollset_set, rdma->content->recvfdobj);
   grpc_pollset_set_add_fd(pollset_set, rdma->content->sendfdobj);
 }
 static void rdma_delete_from_pollset_set(grpc_endpoint *ep,
                                    grpc_pollset_set *pollset_set) {
+  // std::cout << "rdma_delete_from_pollset_set" << std::endl;
   grpc_rdma *rdma = (grpc_rdma *)ep;
   grpc_pollset_set_del_fd(pollset_set, rdma->content->recvfdobj);
   grpc_pollset_set_del_fd(pollset_set, rdma->content->sendfdobj);
 }
 
 static absl::string_view rdma_get_local_address(grpc_endpoint* ep) {
+  // std::cout << "rdma_get_local_address" << std::endl;
   return std::string("");
 }
 
 static int rdma_get_fd(grpc_endpoint* ep) {
+  // std::cout << "rdma_get_fd" << std::endl;
   grpc_rdma* rdma = reinterpret_cast<grpc_rdma*>(ep);
   return rdma->fd;
 }
 
 static absl::string_view rdma_get_peer(grpc_endpoint *ep) {
+  // std::cout << "rdma_get_peer" << std::endl;
   grpc_rdma *rdma = (grpc_rdma *)ep;
   // return rdma->peer_string;
   return std::string(gpr_strdup(rdma->peer_string));
 }
 
 static bool rdma_can_track_err(grpc_endpoint* ep) {
+  // std::cout << "rdma_can_track_err" << std::endl;
   grpc_rdma* tcp = reinterpret_cast<grpc_rdma*>(ep);
   if (!grpc_event_engine_can_track_errors()) {
     return false;
@@ -637,6 +665,7 @@ static const grpc_endpoint_vtable vtable = {
 
 grpc_endpoint *grpc_rdma_create(connect_context *c_ctx,
                                const char *peer_string) {
+  // std::cout << "grpc_rdma_create" << std::endl;
   grpc_rdma *rdma = (grpc_rdma *)gpr_malloc(sizeof(grpc_rdma));
   rdma->base.vtable = &vtable;
   // rdma->peer_string = std::string(peer_string);
@@ -659,7 +688,8 @@ grpc_endpoint *grpc_rdma_create(connect_context *c_ctx,
   gpr_mu_init(&rdma->mu_bufcount);
   gpr_mu_init(&rdma->mu_rflag);
   gpr_mu_init(&rdma->mu_wflag);
-  gpr_slice_buffer_init(&rdma->temp_buffer);
+  // gpr_slice_buffer_init(&rdma->temp_buffer);
+  grpc_slice_buffer_init(&rdma->temp_buffer);
   rdma->iov_size = 1;
   /* paired with unref in grpc_rdma_destroy */
   gpr_ref_init(&rdma->refcount, 1);
@@ -680,6 +710,7 @@ grpc_endpoint *grpc_rdma_create(connect_context *c_ctx,
 }
 
 int grpc_rdma_fd(grpc_endpoint *ep) {
+  // std::cout << "grpc_rdma_fd" << std::endl;
   grpc_rdma *rdma = (grpc_rdma *)ep;
   GPR_ASSERT(ep->vtable == &vtable);
   return grpc_fd_wrapped_fd(rdma->content->recvfdobj);
@@ -687,6 +718,7 @@ int grpc_rdma_fd(grpc_endpoint *ep) {
 
 void grpc_rdma_destroy_and_release_fd(grpc_endpoint *ep,
                                      int *recvfd,int *sendfd, grpc_closure *done) {
+  // std::cout << "grpc_rdma_destroy_and_release_fd" << std::endl;
   grpc_rdma *rdma = (grpc_rdma *)ep;
   GPR_ASSERT(ep->vtable == &vtable);
   rdma->release_fd_in = recvfd;
@@ -696,11 +728,13 @@ void grpc_rdma_destroy_and_release_fd(grpc_endpoint *ep,
 }
 
 static void rdma_sentence_death(grpc_rdma *rdma){
+  // std::cout << "rdma_sentence_death" << std::endl;
   gpr_mu_lock(&rdma->mu_death);
   rdma->dead=true;
   gpr_mu_unlock(&rdma->mu_death);
 }
 void  grpc_rdma_sentence_death(grpc_endpoint *ep){
+  // std::cout << "grpc_rdma_sentence_death" << std::endl;
   grpc_rdma *rdma=(grpc_rdma *) ep;
   if(rdma->dead) return;
   gpr_log(GPR_INFO,"GRPC_SENTENCE_DEATH");
