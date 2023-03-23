@@ -104,6 +104,7 @@ void Chttp2Connector::Connect(const Args& args, Result* result,
 void Chttp2Connector::Shutdown(grpc_error_handle error) {
   MutexLock lock(&mu_);
   shutdown_ = true;
+  std::cout << "src/core/ext/transport/chttp2/client/chttp2_connector.cc:Shutdown() 1" << std::endl;
   if (handshake_mgr_ != nullptr) {
     handshake_mgr_->Shutdown(GRPC_ERROR_REF(error));
   }
@@ -113,7 +114,7 @@ void Chttp2Connector::Shutdown(grpc_error_handle error) {
     grpc_endpoint_shutdown(endpoint_, GRPC_ERROR_REF(error));
   }
   GRPC_ERROR_UNREF(error);
-  // std::cout << "src/core/ext/transport/chttp2/client/chttp2_connector.cc:Shutdown()" << std::endl;
+  std::cout << "src/core/ext/transport/chttp2/client/chttp2_connector.cc:Shutdown() 2" << std::endl;
 }
 
 void Chttp2Connector::Connected(void* arg, grpc_error_handle error) {
@@ -121,9 +122,10 @@ void Chttp2Connector::Connected(void* arg, grpc_error_handle error) {
   bool unref = false;
   {
     MutexLock lock(&self->mu_);
-    // std::cout << "Chttp2Connector::Connected " << self << std::endl;
+    std::cout << "src/core/ext/transport/chttp2/client/chttp2_connector.cc:Connected() " << self << std::endl;
     GPR_ASSERT(self->connecting_);
     self->connecting_ = false;
+    std::cout << "src/core/ext/transport/chttp2/client/chttp2_connector.cc:Connected() shutdown_" << self->shutdown_ << std::endl;
     if (error != GRPC_ERROR_NONE || self->shutdown_) {
       if (error == GRPC_ERROR_NONE) {
         error = GRPC_ERROR_CREATE_FROM_STATIC_STRING("connector shutdown");
@@ -144,6 +146,7 @@ void Chttp2Connector::Connected(void* arg, grpc_error_handle error) {
     }
   }
   if (unref) self->Unref();
+  std::cout << "src/core/ext/transport/chttp2/client/chttp2_connector.cc:Connected() " << self << std::endl;
 }
 
 void Chttp2Connector::StartHandshakeLocked() {
@@ -152,6 +155,7 @@ void Chttp2Connector::StartHandshakeLocked() {
       HANDSHAKER_CLIENT, args_.channel_args, args_.interested_parties,
       handshake_mgr_.get());
   grpc_endpoint_add_to_pollset_set(endpoint_, args_.interested_parties);
+  std::cout << "src/core/ext/transport/chttp2/client/chttp2_connector.cc:StartHandshakeLocked()" << std::endl;
   handshake_mgr_->DoHandshake(endpoint_, args_.channel_args, args_.deadline,
                               nullptr /* acceptor */, OnHandshakeDone, this);
   endpoint_ = nullptr;  // Endpoint handed off to handshake manager.
@@ -204,9 +208,11 @@ void Chttp2Connector::OnHandshakeDone(void* arg, grpc_error_handle error) {
       GRPC_CLOSURE_INIT(&self->on_receive_settings_, OnReceiveSettings, self,
                         grpc_schedule_on_exec_ctx);
       self->Ref().release();  // Ref held by OnTimeout()
+      std::cout << "src/core/ext/transport/chttp2/client/chttp2_connector.cc:OnHandshakeDone() 1" << std::endl;
       grpc_chttp2_transport_start_reading(self->result_->transport,
                                           args->read_buffer,
                                           &self->on_receive_settings_, nullptr);
+      std::cout << "src/core/ext/transport/chttp2/client/chttp2_connector.cc:OnHandshakeDone() 2" << std::endl;
       GRPC_CLOSURE_INIT(&self->on_timeout_, OnTimeout, self,
                         grpc_schedule_on_exec_ctx);
       grpc_timer_init(&self->timer_, self->args_.deadline, &self->on_timeout_);

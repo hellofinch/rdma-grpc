@@ -93,7 +93,7 @@ static void dump_objects(const char* kind) {
   grpc_iomgr_object* obj;
   for (obj = g_root_object.next; obj != &g_root_object; obj = obj->next) {
     gpr_log(GPR_INFO, "%s OBJECT: %s %p", kind, obj->name, obj);
-    // std::cout << "OBJECT: " << obj->name << std::endl;
+    std::cout << kind << " OBJECT: " << obj->name << std::endl;
   }
 }
 
@@ -110,12 +110,12 @@ void grpc_iomgr_shutdown() {
 
     gpr_mu_lock(&g_mu);
     g_shutdown = 1;
-  // std::cout << "count: " << grpc_iomgr_count_objects_for_testing() << std::endl;
+  std::cout << "count: " << grpc_iomgr_count_objects_for_testing() << std::endl;
   
   dump_objects("LEAKED");
-    while (g_root_object.next != &g_root_object) {
-      break;
-  // std::cout << "src/core/lib/iomgr/iomgr.cc:grpc_iomgr_shutdown() start 2-1" << std::endl;
+  while (g_root_object.next != &g_root_object) {
+    break;
+    // std::cout << "src/core/lib/iomgr/iomgr.cc:grpc_iomgr_shutdown() start 2-1" << std::endl;
       if (gpr_time_cmp(
               gpr_time_sub(gpr_now(GPR_CLOCK_REALTIME), last_warning_time),
               gpr_time_from_seconds(1, GPR_TIMESPAN)) >= 0) {
@@ -127,7 +127,7 @@ void grpc_iomgr_shutdown() {
         last_warning_time = gpr_now(GPR_CLOCK_REALTIME);
       }
       grpc_core::ExecCtx::Get()->SetNowIomgrShutdown();
-  // std::cout << "src/core/lib/iomgr/iomgr.cc:grpc_iomgr_shutdown() start 2-2" << std::endl;
+    // std::cout << "src/core/lib/iomgr/iomgr.cc:grpc_iomgr_shutdown() start 2-2" << std::endl;
       if (grpc_timer_check(nullptr) == GRPC_TIMERS_FIRED) {
         gpr_mu_unlock(&g_mu);
         grpc_core::ExecCtx::Get()->Flush();
@@ -135,7 +135,7 @@ void grpc_iomgr_shutdown() {
         gpr_mu_lock(&g_mu);
         continue;
       }
-  // std::cout << "src/core/lib/iomgr/iomgr.cc:grpc_iomgr_shutdown() start 2-3" << std::endl;
+    // std::cout << "src/core/lib/iomgr/iomgr.cc:grpc_iomgr_shutdown() start 2-3" << std::endl;
       if (g_root_object.next != &g_root_object) {
         if (grpc_iomgr_abort_on_leaks()) {
           gpr_log(GPR_DEBUG,
@@ -147,24 +147,24 @@ void grpc_iomgr_shutdown() {
           abort();
         }
         gpr_timespec short_deadline = gpr_time_add(gpr_now(GPR_CLOCK_MONOTONIC), gpr_time_from_millis(100, GPR_TIMESPAN));
-  // std::cout << "src/core/lib/iomgr/iomgr.cc:grpc_iomgr_shutdown() start 2-3-1" << std::endl;
+    // std::cout << "src/core/lib/iomgr/iomgr.cc:grpc_iomgr_shutdown() start 2-3-1" << std::endl;
         if (gpr_cv_wait(&g_rcv, &g_mu, short_deadline)) {
           // std::cout << gpr_time_cmp(gpr_now(GPR_CLOCK_REALTIME), shutdown_deadline) << " time" << std::endl;
           if (gpr_time_cmp(gpr_now(GPR_CLOCK_REALTIME), shutdown_deadline) >= 0) {
-  // std::cout << "src/core/lib/iomgr/iomgr.cc:grpc_iomgr_shutdown() start 2-3-1-1" << std::endl;
+    // std::cout << "src/core/lib/iomgr/iomgr.cc:grpc_iomgr_shutdown() start 2-3-1-1" << std::endl;
             if (g_root_object.next != &g_root_object) {
               gpr_log(GPR_DEBUG,"Failed to free %" PRIuPTR" iomgr objects before shutdown deadline: ""memory leaks are likely",count_objects());
               dump_objects("LEAKED");
             }
-  // std::cout << "src/core/lib/iomgr/iomgr.cc:grpc_iomgr_shutdown() start 2-3-1-2" << std::endl;
+    // std::cout << "src/core/lib/iomgr/iomgr.cc:grpc_iomgr_shutdown() start 2-3-1-2" << std::endl;
             break;
           }
-  // std::cout << "src/core/lib/iomgr/iomgr.cc:grpc_iomgr_shutdown() start 2-3-2" << std::endl;
+    // std::cout << "src/core/lib/iomgr/iomgr.cc:grpc_iomgr_shutdown() start 2-3-2" << std::endl;
         }
       }
-  // std::cout << "src/core/lib/iomgr/iomgr.cc:grpc_iomgr_shutdown() start 2-4" << std::endl;
+    // std::cout << "src/core/lib/iomgr/iomgr.cc:grpc_iomgr_shutdown() start 2-4" << std::endl;
     }
-  // std::cout << "src/core/lib/iomgr/iomgr.cc:grpc_iomgr_shutdown() start 3" << std::endl;
+    // std::cout << "src/core/lib/iomgr/iomgr.cc:grpc_iomgr_shutdown() start 3" << std::endl;
     gpr_mu_unlock(&g_mu);
     grpc_timer_list_shutdown();
     grpc_core::ExecCtx::Get()->Flush();

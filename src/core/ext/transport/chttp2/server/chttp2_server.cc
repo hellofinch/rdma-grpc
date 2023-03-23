@@ -483,7 +483,6 @@ void Chttp2ServerListener::ActiveConnection::HandshakingState::OnHandshakeDone(
             // will not be invoked when a config fetcher is set.
             cleanup_connection = true;
           }
-          std::cout << "src/core/ext/transport/chttp2/server/chttp2_server.cc:Chttp2ServerListener::ActiveConnection::HandshakingState::OnHandshakeDone() before grpc_chttp2_transport_start_reading" << std::endl;
           grpc_chttp2_transport_start_reading(transport, args->read_buffer,
                                               &self->on_receive_settings_,
                                               on_close);
@@ -516,7 +515,7 @@ void Chttp2ServerListener::ActiveConnection::HandshakingState::OnHandshakeDone(
   }
   OrphanablePtr<ActiveConnection> connection;
   // std::cout << "src/core/ext/transport/chttp2/server/chttp2_server.cc:Chttp2ServerListener::ActiveConnection::HandshakingState::OnHandshakeDone() handshaking_state_ref move " << self->acceptor_ << std::endl;
-  gpr_free(self->acceptor_); //这个地方不会double free了，client端没有结束。
+  gpr_free(self->acceptor_); 
   // std::cout << "src/core/ext/transport/chttp2/server/chttp2_server.cc:Chttp2ServerListener::ActiveConnection::HandshakingState::OnHandshakeDone() handshaking_state_ref move " << self->acceptor_ << std::endl;
   self->acceptor_ = nullptr;
   // std::cout << "src/core/ext/transport/chttp2/server/chttp2_server.cc:Chttp2ServerListener::ActiveConnection::HandshakingState::OnHandshakeDone() handshaking_state_ref move " << self->acceptor_ << std::endl;

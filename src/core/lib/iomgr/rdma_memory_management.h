@@ -7,6 +7,7 @@
 #include "src/core/lib/slice/slice_refcount_base.h"
 #include "grpc/impl/codegen/gpr_slice.h"
 #include "grpc/impl/codegen/sync_generic.h"
+#include "src/core/lib/gprpp/ref_counted.h"
 typedef struct{
   int msg_info;
   size_t msg_len;
@@ -31,7 +32,7 @@ struct _rdma_mem_node{
 };
 struct _rdma_mem_manager{
   rdma_mem_node *nil;
-  gpr_refcount refs;
+  grpc_core::RefCount refs;
   int node_count;//for debugging
 };
 rdma_mem_node *rdma_mm_pop(rdma_mem_manager* manager);
@@ -40,6 +41,6 @@ void rdma_mm_push(rdma_mem_node* tar);
 //void rdma_mm_free(rdma_mem_manager* tar);
 void rdma_mm_unref(rdma_mem_manager* tar);
 rdma_mem_manager* rdma_mm_create();
-gpr_slice rdma_mm_get_slice(rdma_message* buffer);
+grpc_slice rdma_mm_get_slice(rdma_message* buffer);
 //Assume that buffer comes from a RDMA_MESSSAGE
 #endif

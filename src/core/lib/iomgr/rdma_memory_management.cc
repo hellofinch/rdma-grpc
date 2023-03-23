@@ -17,39 +17,44 @@ rdma_mem_manager* rdma_mm_create(){
 	tar->nil=rdma_mm_alloc_node(tar);
 	tar->nil->next=tar->nil->prev=tar->nil;
 	tar->node_count=0;
-	gpr_ref_init(&tar->refs,1);
+	// gpr_ref_init(&tar->refs,1);
+	new (&tar->refs) grpc_core::RefCount(1,"rdma");
 	return(tar);
 }
 
 typedef struct{
   gpr_slice_refcount base;
-  gpr_refcount refs;
+  grpc_core::RefCount refs;
   rdma_mem_node* node;
 }rdma_mm_refcounter;
 static void rdma_mm_slice_ref(void* arg){
 	rdma_mm_refcounter* rc=(rdma_mm_refcounter*)arg;
-	gpr_ref(&rc->refs);
+	// gpr_ref(&rc->refs);
+	rc->refs.Ref();
 }
 static void rdma_mm_slice_unref(void* arg){
 	rdma_mm_refcounter* rc=(rdma_mm_refcounter*)arg;
-	if(gpr_unref(&rc->refs)){
+	// if(gpr_unref(&rc->refs)){
+	if(rc->refs.Unref()){
 		rdma_mm_push(rc->node);
 		rdma_mm_unref(rc->node->manager);
 		gpr_free(rc);
 	}
 }
-gpr_slice rdma_mm_get_slice(rdma_message* buffer){
+grpc_slice rdma_mm_get_slice(rdma_message* buffer){
 	rdma_mem_node *node=(rdma_mem_node*)buffer;
-	gpr_slice slice;
+	grpc_slice slice;
 	rdma_mm_refcounter* rc=(rdma_mm_refcounter*)gpr_malloc(sizeof(rdma_mm_refcounter));
 	rc->base.ref=rdma_mm_slice_ref;
 	rc->base.unref=rdma_mm_slice_unref;
-	gpr_ref_init(&rc->refs,1);
+	// gpr_ref_init(&rc->refs,1);
+	new (&rc->refs) grpc_core::RefCount(1,"rdma");
 	rc->node=node;
 	slice.refcount=&rc->base;
 	slice.data.refcounted.bytes=(uint8_t *)buffer->msg_content;
 	slice.data.refcounted.length=buffer->msg_len;
-	gpr_ref(&node->manager->refs);
+	// gpr_ref(&node->manager->refs);
+	node->manager->refs.Ref();
 	//gpr_log(GPR_DEBUG,"SLICE LENGTH=%d",(int)buffer->msg_len);
 	return(slice);
 }
@@ -92,6 +97,6 @@ static void rdma_mm_free(rdma_mem_manager* tar){
 }
 void rdma_mm_unref(rdma_mem_manager *tar){
 	//gpr_log(GPR_DEBUG,"-1");
-	if(gpr_unref(&tar->refs))
+	if(tar->refs.Unref())
 		rdma_mm_free(tar);
 }

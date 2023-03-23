@@ -2471,8 +2471,10 @@ static void read_action_locked(void* tp, grpc_error_handle error) {
   if (t->closed_with_error == GRPC_ERROR_NONE) {
     GPR_TIMER_SCOPE("reading_action.parse", 0);
     size_t i = 0;
+    // std::cout << "src/core/ext/transport/chttp2/transport/chttp2_transport.cc:read_action_locked():reading_action.parse" << std::endl;
     grpc_error_handle errors[3] = {GRPC_ERROR_REF(error), GRPC_ERROR_NONE,
                                    GRPC_ERROR_NONE};
+    // std::cout << "src/core/ext/transport/chttp2/transport/chttp2_transport.cc:read_action_locked():t->deframe_state " << t->deframe_state << std::endl;
     for (; i < t->read_buffer.count && errors[1] == GRPC_ERROR_NONE; i++) {
       errors[1] = grpc_chttp2_perform_read(t, t->read_buffer.slices[i]);
     }
@@ -2485,7 +2487,6 @@ static void read_action_locked(void* tp, grpc_error_handle error) {
     for (i = 0; i < GPR_ARRAY_SIZE(errors); i++) {
       GRPC_ERROR_UNREF(errors[i]);
     }
-
     GPR_TIMER_SCOPE("post_parse_locked", 0);
     if (t->initial_window_update != 0) {
       if (t->initial_window_update > 0) {
@@ -2522,7 +2523,16 @@ static void read_action_locked(void* tp, grpc_error_handle error) {
       grpc_timer_cancel(&t->keepalive_ping_timer);
     }
   }
+  std::cout << "1 (&t->read_buffer)->length: " << (&t->read_buffer)->length << std::endl;
+  // std::cout << "1 (&t->read_buffer)->count: " << (&t->read_buffer)->count << std::endl;
+  // std::cout << "1 (&t->read_buffer)->base_slices: " << (&t->read_buffer)->base_slices << std::endl;
+  // std::cout << "1 keep_reading: " << keep_reading << std::endl;
+  std::cout << &((&t->read_buffer)->slices[(&t->read_buffer)->count-1]) << std::endl;
   grpc_slice_buffer_reset_and_unref_internal(&t->read_buffer);
+  std::cout << "2 (&t->read_buffer)->length: " << (&t->read_buffer)->length << std::endl;
+  // std::cout << "2 (&t->read_buffer)->count: " << (&t->read_buffer)->count << std::endl;
+  // std::cout << "2 (&t->read_buffer)->base_slices: " << (&t->read_buffer)->base_slices << std::endl;
+  // std::cout << "2 keep_reading: " << keep_reading << std::endl;
 
   if (keep_reading) {
     if (t->num_pending_induced_frames >= DEFAULT_MAX_PENDING_INDUCED_FRAMES) {
@@ -2546,8 +2556,6 @@ static void continue_read_action_locked(grpc_chttp2_transport* t) {
   const bool urgent = t->goaway_error != GRPC_ERROR_NONE;
   GRPC_CLOSURE_INIT(&t->read_action_locked, read_action, t,
                     grpc_schedule_on_exec_ctx);
-  
-  // std::cout << "src/core/ext/transport/chttp2/transport/chttp2_transport.cc:continue_read_action_locked" << std::endl;
   grpc_endpoint_read(t->ep, &t->read_buffer, &t->read_action_locked, urgent);
   grpc_chttp2_act_on_flowctl_action(t->flow_control->MakeAction(), t, nullptr);
 }

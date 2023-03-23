@@ -40,7 +40,7 @@
 #endif
 
 #ifdef GPR_MSG_IOVLEN_TYPE
-typedef GPR_MSG_IOVLEN_TYPE msg_iovlen_type;`
+typedef GPR_MSG_IOVLEN_TYPE msg_iovlen_type;
 #else
 typedef size_t msg_iovlen_type;
 #endif
@@ -53,7 +53,7 @@ typedef struct {
   int fd;
   msg_iovlen_type iov_size; /* Number of slices to allocate per read attempt */
   size_t slice_size;
-  gpr_refcount refcount;
+  grpc_core::RefCount refcount;
 
   // gpr_slice_buffer *incoming_buffer;
   // gpr_slice_buffer temp_buffer;
@@ -95,12 +95,15 @@ static void rdma_shutdown(grpc_endpoint *ep,grpc_error_handle /*error*/) {
   // std::cout << "src/core/lib/iomgr/rdma_cm.cc:rdma_shutdown() front" << std::endl;
   if(rdma->dead) return;
   gpr_log(GPR_INFO,"DESTROY:RDMA_CM_ID=%p",rdma->content->id);
+  std::cout << "DESTROY:RDMA_CM_ID=" << rdma->content->id << std::endl;
   rdma_disconnect(rdma->content->id);
   gpr_log(GPR_INFO,"ENDPOINT:DISCONNECTED");
+  std::cout << "ENDPOINT:DISCONNECTED" << std::endl;
   grpc_fd_shutdown(rdma->content->sendfdobj,GRPC_ERROR_CREATE_FROM_STATIC_STRING("rdma_shutdown send destroyed"));
   grpc_fd_shutdown(rdma->content->recvfdobj,GRPC_ERROR_CREATE_FROM_STATIC_STRING("rdma_shutdown recv destroyed"));
   rdma->msg_pending=false;
   gpr_log(GPR_INFO,"ENDPOINT:FD CLOSED");
+  std::cout << "ENDPOINT:FD CLOSED" << std::endl;
   // std::cout << "src/core/lib/iomgr/rdma_cm.cc:rdma_shutdown() back" << std::endl;
   //grpc_exec_ctx_flush(exec_ctx);
 }
@@ -116,39 +119,34 @@ static void rdma_free(grpc_rdma *rdma) {
   }
   gpr_free(rdma);
   gpr_log(GPR_INFO,"Endpoint:Goodbye~");
+  std::cout << "Endpoint:Goodbye~" << std::endl;
 }
 //#define GRPC_RDMA_REFCOUNT_DEBUG
 #ifdef GRPC_RDMA_REFCOUNT_DEBUG
-#define RDMA_UNREF(rdma, reason) \
-  rdma_unref( (rdma), (reason), __FILE__, __LINE__)
-#define RDMA_REF(rdma, reason) rdma_ref((rdma), (reason), __FILE__, __LINE__)
+#define RDMA_UNREF(rdma, reason) rdma_unref( (rdma), (reason), DEBUG_LOCATION)
+#define RDMA_REF(rdma, reason) rdma_ref((rdma), (reason), DEBUG_LOCATION)
 static void rdma_unref(grpc_rdma *rdma,
-                      const char *reason, const char *file, int line) {
-  gpr_log(file, line, GPR_LOG_SEVERITY_DEBUG, "TCP unref %p : %s %d -> %d", rdma,
-          reason, (int)rdma->refcount.count, (int)rdma->refcount.count - 1);
-  if (gpr_unref(&rdma->refcount)) {
+                      const char *reason, const grpc_core::DebugLocation& debug_location) {
+  // gpr_log(file, line, GPR_LOG_SEVERITY_DEBUG, "TCP unref %p : %s %d -> %d", rdma,
+  //         reason, (int)rdma->refcount.count, (int)rdma->refcount.count - 1);
+  if (GPR_UNLIKELY(rdma->refcount.Unref(debug_location, reason))) {
     rdma_free(rdma);
   }
 }
 
-static void rdma_ref(grpc_rdma *rdma, const char *reason, const char *file,
-                    int line) {
-  gpr_log(file, line, GPR_LOG_SEVERITY_DEBUG, "TCP   ref %p : %s %d -> %d", rdma,
-          reason, (int)rdma->refcount.count, (int)rdma->refcount.count + 1);
-  gpr_ref(&rdma->refcount);
+static void rdma_ref(grpc_rdma *rdma, const char *reason, const grpc_core::DebugLocation& debug_location) {
+  rdma->refcount.Ref(debug_location,reason);
 }
 #else
 #define RDMA_UNREF(rdma, reason) rdma_unref((rdma))
 #define RDMA_REF(rdma, reason) rdma_ref((rdma))
 static void rdma_unref(grpc_rdma *rdma) {
-  if (gpr_unref(&rdma->refcount)) {
+  if (GPR_UNLIKELY(rdma->refcount.Unref())) {
     rdma_free(rdma);
   }
 }
 
-static void rdma_ref(grpc_rdma *rdma) { 
-  gpr_ref(&rdma->refcount);
-}
+static void rdma_ref(grpc_rdma *rdma) { rdma->refcount.Ref();}
 
 #endif
 
@@ -160,7 +158,7 @@ static void rdma_destroy(grpc_endpoint *ep) {
 }
 static void readfd_notify(grpc_rdma *rdma){
   if(rdma->rflag) return;
-  // std::cout << "readfd_notify" << std::endl;
+  std::cout << "readfd_notify" << std::endl;
   gpr_mu_lock(&rdma->mu_rflag);
   grpc_fd_notify_on_read(rdma->content->recvfdobj, &rdma->read_closure);
   rdma->rflag=true;
@@ -174,7 +172,7 @@ static void readfd_notified(grpc_rdma *rdma){
 }
 static void writefd_notify(grpc_rdma *rdma){
   if(rdma->wflag) return;
-  // std::cout << "writefd_notify" << std::endl;
+  std::cout << "writefd_notify" << std::endl;
   gpr_mu_lock(&rdma->mu_wflag);
   grpc_fd_notify_on_read(rdma->content->sendfdobj, &rdma->write_closure);
   rdma->wflag=true;
@@ -191,10 +189,11 @@ static void call_read_cb(grpc_rdma *rdma,
   grpc_closure *cb = rdma->read_cb;
   if(!cb) return;
   gpr_log(GPR_INFO,"Called_READCB");
-  // std::cout << "Called_READCB" << std::endl;
+  std::cout << "Called_READCB" << std::endl;
   if (grpc_rdma_trace) {
     size_t i;
     gpr_log(GPR_INFO, "read: error=%s", grpc_error_std_string(error).c_str());
+    std::cout << "src/core/lib/iomgr/rdma_cm.cc:call_read_cb() read: error= " << grpc_error_std_string(error).c_str() <<std::endl;
     for (i = 0; i < rdma->incoming_buffer->count; i++) {
       char *dump = grpc_dump_slice(rdma->incoming_buffer->slices[i],
                                   GPR_DUMP_HEX | GPR_DUMP_ASCII);
@@ -207,6 +206,7 @@ static void call_read_cb(grpc_rdma *rdma,
   if(rdma->incoming_buffer!=&rdma->temp_buffer)
     rdma->incoming_buffer = NULL;
   // grpc_exec_ctx_sched(exec_ctx, cb, error, NULL);
+  std::cout << "src/core/lib/iomgr/rdma_cm.cc:call_read_cb() create: " << cb->file_created << ":"<< cb->line_created << std::endl;
   grpc_core::ExecCtx::Run(DEBUG_LOCATION, cb,error);
 }
 
@@ -215,13 +215,15 @@ static void* rdma_continue_read(grpc_rdma *rdma, struct ibv_wc *wc) {
   rdma_message* msg=(rdma_message*)wc->wr_id;
   //char *buffer=msg->msg_content;
   gpr_log(GPR_INFO,"Continue Read,Get a slice");
-  // std::cout << "rdma_continue_read" << std::endl;
+  std::cout << "rdma_continue_read" << std::endl;
   // GPR_TIMER_BEGIN("rdma_continue_read", 0);
   gpr_log(GPR_INFO,"A Message of %d Bytes Received",wc->byte_len);
+  std::cout << "A Message of " << wc->byte_len << " Bytes Received" << std::endl;
   if(msg->msg_info!=MSGINFO_MESSAGE){
     gpr_mu_lock(&rdma->mu_bufcount);
     rdma->peer_buffer_count+=msg->msg_info;
     gpr_log(GPR_INFO,"A sms");//qazwsx
+    std::cout << "A sms " << (int)msg->msg_len << " msg_info: " << msg->msg_info << std::endl;
     gpr_mu_unlock(&rdma->mu_bufcount);
     rdma_post_recv(rdma->content->id,
 			  msg,
@@ -231,18 +233,22 @@ static void* rdma_continue_read(grpc_rdma *rdma, struct ibv_wc *wc) {
         return(NULL);
   }else{
 	  gpr_log(GPR_INFO,"A Message %d",(int)msg->msg_len);//qazwsx
+    std::cout << "A Message " << (int)msg->msg_len << " msg->msg_info: " << msg->msg_info << std::endl;
+      std::cout << msg->msg_content[0];
+    std::cout << std::endl;
 	  if(rdma->incoming_buffer==NULL) 
 		  rdma->incoming_buffer=&rdma->temp_buffer;
-	  gpr_slice_buffer_add_indexed(rdma->incoming_buffer, rdma_mm_get_slice(msg));
+	  grpc_slice_buffer_add_indexed(rdma->incoming_buffer, rdma_mm_get_slice(msg));
     rdma_mem_node* node=rdma_mm_pop(rdma->content->manager);
     gpr_log(GPR_INFO,"MR_ADDR=%p",((rdma_mem_node*)msg)->mr);
+    std::cout << "MR_ADDR=" << ((rdma_mem_node*)msg)->mr << std::endl;
 	  if(!node->mr){
 	    node->mr=ibv_reg_mr(
 				rdma->content->pd,
 				&node->context,
 				sizeof(rdma_memory_region),
 				IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE
-	    );
+	    );// 此处对应IB通信中的注册内存索引
       if(!node->mr) gpr_log(GPR_ERROR,"reg_mr failed:%s",strerror(errno));
 	  }
     rdma_post_recv(rdma->content->id,
@@ -254,15 +260,18 @@ static void* rdma_continue_read(grpc_rdma *rdma, struct ibv_wc *wc) {
   }
 }
 static void rdma_clean_failed_wr(grpc_rdma *rdma, struct ibv_wc *wc){
-  // std::cout << "rdma_clean_failed_wr" << std::endl;
 	rdma_mem_node* msg=(rdma_mem_node*)wc->wr_id;
+  std::cout << "rdma_clean_failed_wr msg_len " << msg->context.msg.msg_len; 
+  std::cout << " msg_info " << msg->context.msg.msg_info;
+  std::cout << " sms_len " << msg->context.sms.msg_info;
+  std::cout << " sms_info " << msg->context.sms.msg_info << std::endl;
 	if(msg) rdma_mm_push(msg);
 }
 //#define MAX_RETRY_COUNT 2
 //#define SLEEP_PERIOD 200
 static void rdma_handle_read(void *arg /* grpc_rdma */,
                             grpc_error_handle error) {
-  // std::cout << "rdma_handle_read" << std::endl;
+  std::cout << "rdma_handle_read" << std::endl;
   grpc_rdma *rdma = (grpc_rdma *)arg;
   GRPC_ERROR_REF(error);
   grpc_error_handle readerr=error;
@@ -278,13 +287,16 @@ static void rdma_handle_read(void *arg /* grpc_rdma */,
     void *ctx;
 	  unsigned events_completed=0;
 	  int get_cqe_result=ibv_get_cq_event(rdma->content->recv_comp_channel,&cq,&ctx);
+    std::cout << "errno " << errno << " " << strerror(errno) << std::endl;
 	  if(get_cqe_result!=0){
 	    if(errno==EAGAIN){
 	      gpr_log(GPR_INFO,"get_cqe failed,EAGAIN");
+        std::cout << "get_cqe failed,EAGAIN" << std::endl;
 	      readfd_notify(rdma);
 	      iseagain=true;
 	    }else{
 	      readerr=GRPC_OS_ERROR(errno,"ibv_get_cq_event");
+        std::cout << "ibv_get_cq_event" << std::endl;
 	    }
 	  }
 	  if(readerr==GRPC_ERROR_NONE&&!iseagain){
@@ -295,23 +307,29 @@ static void rdma_handle_read(void *arg /* grpc_rdma */,
 				  if(ret!=NULL){
 				    sms=(rdma_memory_region*)ret;
 				    ++refilled_bufs;
-				  } 
+				  }
+          std::cout << "OPCODE=" << wc.opcode << " status=" << wc.status << " wrid=" << (int)wc.wr_id << std::endl;
 			  }else{
 				  gpr_log(GPR_INFO,"An operation failed. OPCODE=%d status=%d wrid=%d",wc.opcode,wc.status,(int)wc.wr_id);
+				  std::cout << "An operation failed. OPCODE=" << wc.opcode << " status=" << wc.status << " wrid=" << (int)wc.wr_id << std::endl;
 				  // gpr_slice_buffer_reset_and_unref(rdma->incoming_buffer);
 				  // gpr_slice_buffer_reset_and_unref(rdma->incoming_buffer);
-				  grpc_slice_buffer_reset_and_unref_internal(rdma->incoming_buffer);
-				  // grpc_slice_buffer_reset_and_unref_internal(&rdma->temp_buffer);
+				  // grpc_slice_buffer_reset_and_unref_internal(rdma->incoming_buffer);
+				  grpc_slice_buffer_reset_and_unref_internal(&rdma->temp_buffer);
 				  rdma_clean_failed_wr(rdma,&wc);
-				  if(!readerr) readerr=GRPC_ERROR_CREATE_FROM_STATIC_STRING("Read Failed");
+				  if(!readerr){
+            readerr=GRPC_ERROR_CREATE_FROM_STATIC_STRING("Read Failed");
+          } 
 			  }
 		  }
+      std::cout << "src/core/lib/iomgr/rdma_cm.cc:rdma_handle_read refilled_bufs " <<refilled_bufs<< " events_completed " << events_completed << std::endl;
 		  ibv_ack_cq_events(cq,events_completed);
 
       if(0!=ibv_req_notify_cq(cq,0)){
-      gpr_log(GPR_ERROR,"Failed to require notifications.");
-      if(readerr) readerr=grpc_error_set_str(error, GRPC_ERROR_STR_DESCRIPTION, "Require notification failed");
-                        else readerr=GRPC_ERROR_CREATE_FROM_STATIC_STRING("Require notification failed");
+        gpr_log(GPR_ERROR,"Failed to require notifications.");
+        std::cout << "Failed to require notifications." << std::endl;
+        if(readerr) readerr=grpc_error_set_str(error, GRPC_ERROR_STR_DESCRIPTION, "Require notification failed");
+        else readerr=GRPC_ERROR_CREATE_FROM_STATIC_STRING("Require notification failed");
 		  }
 	  }
   }else{
@@ -320,6 +338,7 @@ static void rdma_handle_read(void *arg /* grpc_rdma */,
 	  unsigned events_completed=0;
 	  if(get_cqe_result==0){
 	    while(ibv_poll_cq(cq,1,&wc)){
+        std::cout << "get_cqe_result " << get_cqe_result << std::endl;
 	      rdma_clean_failed_wr(rdma,&wc);
 	      ++events_completed;
 	    }
@@ -333,6 +352,7 @@ static void rdma_handle_read(void *arg /* grpc_rdma */,
 	  if(iseagain) return;
 	  if(sms){
 		  gpr_log(GPR_INFO,"Send a short message");//qazwsx
+      std::cout << "RDMA_cm Send a short message" << std::endl;
 		  sms->sms.msg_info=refilled_bufs;
 		  rdma_post_send(rdma->content->id,
 				  (void*)SENDCONTEXT_SMS,
@@ -340,12 +360,13 @@ static void rdma_handle_read(void *arg /* grpc_rdma */,
 				  sizeof(rdma_smessage),
 				  ((rdma_mem_node*)sms)->mr,
 				  0);
-      		  call_read_cb( rdma, readerr);
-                  RDMA_UNREF(rdma,"read");
+      call_read_cb(rdma, readerr);
+      RDMA_UNREF(rdma,"read");
 	  }else{
 		  if(rdma->read_cb)
 			  readfd_notify(rdma);
 	  }
+    std::cout << "peer_buffer_count: " << rdma->peer_buffer_count << " rdma->msg_pending " << rdma->msg_pending << std::endl;
 	  if(rdma->msg_pending&&rdma->peer_buffer_count>0){
 		  grpc_error_handle writeerr=GRPC_ERROR_NONE;
 		  rdma_flush(rdma,&writeerr);
@@ -362,18 +383,20 @@ static void rdma_handle_read(void *arg /* grpc_rdma */,
 // static void rdma_read(grpc_endpoint *ep, gpr_slice_buffer *incoming_buffer, grpc_closure *cb, bool urgent) {
 static void rdma_read(grpc_endpoint *ep, grpc_slice_buffer *incoming_buffer, grpc_closure *cb, bool urgent) {
   gpr_log(GPR_INFO,"RDMA_READ CALLED");
-  std::cout << "RDMA_READ CALLED" << std::endl;
+  std::cout << "RDMA_READ CALLED rdma_on_send_complete" << std::endl;
   grpc_rdma *rdma = (grpc_rdma *)ep;
   //GPR_ASSERT(rdma->read_cb == NULL);
   rdma->read_cb = cb;
   // gpr_slice_buffer_reset_and_unref(incoming_buffer);
   grpc_slice_buffer_reset_and_unref_internal(incoming_buffer);
   if(rdma->incoming_buffer==&rdma->temp_buffer){ //判断是不是第一次读
+    std::cout << "src/core/lib/iomgr/rdma_cm.cc:rdma_read() first time" << std::endl;
     // gpr_slice_buffer_swap(rdma->incoming_buffer,incoming_buffer);
     grpc_slice_buffer_swap(incoming_buffer, rdma->incoming_buffer);
     rdma->incoming_buffer=NULL;
     call_read_cb(rdma,GRPC_ERROR_NONE);
   }else{
+    std::cout << "src/core/lib/iomgr/rdma_cm.cc:rdma_read() not first time " << incoming_buffer << " " << rdma->incoming_buffer << std::endl;
   	rdma->incoming_buffer = incoming_buffer;
   	RDMA_REF(rdma, "read");
 	  readfd_notify(rdma);
@@ -392,6 +415,7 @@ static void rdma_on_send_complete(grpc_rdma *rdma,grpc_error_handle error){
 #define MAX_WRITE_IOVEC 16
 #define MIN_NUM(a,b) ((a)<(b)?(a):(b))
 static bool rdma_flush(grpc_rdma *rdma, grpc_error_handle *error) {
+  std::cout << "rdma_flush" << std::endl;
   gpr_mu_lock(&rdma->mu_bufcount);
   if(rdma->peer_buffer_count<=0) {
         gpr_log(GPR_INFO,"WAIT FOR PARTNER's BUFFER");
@@ -439,6 +463,7 @@ static bool rdma_flush(grpc_rdma *rdma, grpc_error_handle *error) {
   result=ibv_post_send(rdma->content->qp,&workreq,&bad_wr);
   --rdma->peer_buffer_count;
   gpr_log(GPR_INFO,"Send a message %d",(int)msg->msg_len);//qazwsx
+  std::cout << "Send a message "<< (int)msg->msg_len << " result: " << result << std::endl;//qazwsx
   gpr_mu_unlock(&rdma->mu_bufcount);
   if(result==0){
     rdma->outgoing_slice_idx=unwind_slice_idx;
@@ -453,7 +478,7 @@ static bool rdma_flush(grpc_rdma *rdma, grpc_error_handle *error) {
 
 static void rdma_handle_write(void *arg /* grpc_rdma */,
                              grpc_error_handle error) {
-  // std::cout << "rdma_handle_write" << std::endl;
+  std::cout << "rdma_handle_write" << std::endl;
   grpc_rdma *rdma = (grpc_rdma *)arg;
   GRPC_ERROR_REF(error);
   grpc_error_handle writeerr=error;
@@ -498,13 +523,14 @@ static void rdma_handle_write(void *arg /* grpc_rdma */,
 			    if(!writeerr) writeerr=grpc_error_set_str(error, GRPC_ERROR_STR_DESCRIPTION, "Read Failed");//GRPC_ERROR_CREATE("Read Failed");
 			  }else{
           gpr_log(GPR_INFO,"A Message sent");
-          // std::cout << "A Message sent" << std::endl;
+          std::cout << "A Message sent " << wc.byte_len << " Bytes send" << std::endl;
 			  }
 			  if(wc.wr_id==SENDCONTEXT_DATA){
           sendctx_has_data=1;
 			  }else{
 			    gpr_log(GPR_INFO,"SMS done");
-          // std::cout << "SMS done" << std::endl;
+          std::cout << "SMS done" << std::endl;
+          std::cout << "SMS done " << wc.byte_len << " Bytes send" << std::endl;
 			  }
 		  }
 		  ibv_ack_cq_events(cq,events_completed);
@@ -578,11 +604,13 @@ static void rdma_write(grpc_endpoint *ep, grpc_slice_buffer *buf, grpc_closure *
 	  }else{
 		  rdma->write_cb = cb;
 		  RDMA_REF(rdma,"write");
+    std::cout << "src/core/lib/iomgr/rdma_cm.cc:rdma_write() after rdma_flush " << cb->file_created << ":" << cb->line_created << std::endl;
       writefd_notify(rdma);
 		  //grpc_fd_notify_on_read(exec_ctx,rdma->content->sendfdobj,&rdma->write_closure);
 	  }
   }else{
 	  gpr_log(GPR_INFO,"Lackof buffer,wait for a while");
+    std::cout << "Lackof buffer,wait for a while" << std::endl;
 	  rdma->write_cb = cb;
 	  RDMA_REF(rdma,"write");
 	  readfd_notify(rdma);
@@ -692,7 +720,8 @@ grpc_endpoint *grpc_rdma_create(connect_context *c_ctx,
   grpc_slice_buffer_init(&rdma->temp_buffer);
   rdma->iov_size = 1;
   /* paired with unref in grpc_rdma_destroy */
-  gpr_ref_init(&rdma->refcount, 1);
+  // gpr_ref_init(&rdma->refcount, 1);
+  new (&rdma->refcount) grpc_core::RefCount(1,"rdma");
   //RDMA_REF(rdma,"Born");
   rdma->content = c_ctx;
   rdma_ctx_ref(c_ctx);

@@ -207,7 +207,7 @@ static void on_writable(void* acp, grpc_error_handle error) {
       break;
   }
 
-finish:
+  finish:
   if (fd != nullptr) {
     grpc_pollset_set_del_fd(ac->interested_parties, fd);
     grpc_fd_orphan(fd, nullptr, nullptr, "tcp_client_orphan");

@@ -30,7 +30,7 @@
 #include <grpc/support/string_util.h>
 #include <grpc/support/sync.h>
 #include <grpc/support/time.h>
-#include <src/core/lib/gpr/useful.h>
+#include "src/core/lib/gpr/useful.h"
 
 #include "src/core/lib/iomgr/resolve_address.h"
 #include "src/core/lib/channel/channel_args.h"
@@ -368,6 +368,7 @@ static int on_connect_request(struct rdma_cm_id *id) {
     context = (struct connect_context *)gpr_malloc(sizeof(struct connect_context));
     memset(context, 0, sizeof(struct connect_context));
     gpr_ref_init(&context->refcount, 1);
+    // new (&context->refcount) grpc_core::RefCount(1,"rdma");
     context->sendfd = send_comp_channel->fd;
     context->recvfd = recv_comp_channel->fd;
     context->qp = id->qp;
@@ -492,7 +493,7 @@ static int on_connection( grpc_rdma_listener *sp,void *ctx) {
   // gpr_asprintf(&name, "tcp-server-connection:%s", addr_str);
   std::string name=absl::StrCat("tcp-server-connection:", addr_str);
   gpr_log(GPR_INFO, "SERVER_CONNECT: incoming connection: %s", addr_str.c_str());
-  // std::cout << "SERVER_CONNECT: incoming connection: " << name << std::endl;
+  std::cout << "SERVER_CONNECT: incoming connection: " << name << std::endl;
   
   if (read_notifier_pollset == NULL) {
     gpr_log(GPR_INFO, "Read notifier pollset is not set on the fd");
@@ -559,13 +560,13 @@ static void grpc_rdma_server_on_event(void* arg,grpc_error_handle err) {
     switch (event->event) {
         case RDMA_CM_EVENT_CONNECT_REQUEST:
 	          gpr_log(GPR_INFO, "Server: on_event RDMA_CM_EVENT_CONNECT_REQUEST");
-            // std::cout << "Server: on_event RDMA_CM_EVENT_CONNECT_REQUEST" << std::endl;
+            std::cout << "Server: on_event RDMA_CM_EVENT_CONNECT_REQUEST" << std::endl;
             ret = on_connect_request(event->id);
             rdma_ack_cm_event(event);
             break;
         case RDMA_CM_EVENT_ESTABLISHED:
 	          gpr_log(GPR_INFO, "Server: on_event RDMA_CM_EVENT_ESTABLISHED");
-            // std::cout << "Server: on_event RDMA_CM_EVENT_ESTABLISHED" << std::endl;
+            std::cout << "Server: on_event RDMA_CM_EVENT_ESTABLISHED" << std::endl;
             ret = on_connection(sp, event->id->context);
             rdma_ack_cm_event(event);
             break;
@@ -573,16 +574,16 @@ static void grpc_rdma_server_on_event(void* arg,grpc_error_handle err) {
             rdma_ack_cm_event(event);
             ret = on_disconnect(id);
 	          gpr_log(GPR_INFO, "Server: on_event RDMA_CM_EVENT_DISCONNECTED");
-            // std::cout << "Server: on_event RDMA_CM_EVENT_DISCONNECTED" << std::endl;
+            std::cout << "Server: on_event RDMA_CM_EVENT_DISCONNECTED" << std::endl;
             break;
         case RDMA_CM_EVENT_TIMEWAIT_EXIT:
 	          gpr_log(GPR_INFO,"Server: TIMEWAIT_EXIT");
-            // std::cout << "Server: on_event TIMEWAIT_EXIT" << std::endl;
+            std::cout << "Server: on_event TIMEWAIT_EXIT" << std::endl;
 	          ret=0;
             break;
         default:
 	          gpr_log(GPR_ERROR, "Server: on_event Unknow RDMA_CM_EVENT:%d", event->event);
-            // std::cout << "Server: on_event Unknow RDMA_CM_EVENT" << std::endl;
+            std::cout << "Server: on_event Unknow RDMA_CM_EVENT" << std::endl;
             ret = -1;
             break;
     }
